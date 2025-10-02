@@ -368,15 +368,7 @@ void autosteerLoop() {
     switchByte |= workSwitch;
 
 
-    if (useteensyadc)  //Single Input ADC from teensy
-    {
-
-      steeringPosition = adcteensy->adc0->analogRead(readPin) * 3.5;  // read a new value, will return ADC_ERROR_VALUE if the comparison is false.
-
-
-      helloSteerPosition = steeringPosition - 6600;
-
-    } else {
+    
 
       //get steering position
       if (steerConfig.SingleInputWAS)  //Single Input ADS
@@ -402,7 +394,7 @@ void autosteerLoop() {
     
 
 
-    if (Relay_Type) {
+    if (useMCP23017) {
 
       SetRelays();  //turn on off section relays
     }

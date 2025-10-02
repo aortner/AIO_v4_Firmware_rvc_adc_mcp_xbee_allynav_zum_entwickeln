@@ -1,5 +1,5 @@
 bool gnsspassThrough = false;
-bool Relay_Type = 0;  // set to 1 if using mcp23017 port expander
+bool useMCP23017 = true;  
 bool xbee = 0;
 bool isKeya = true;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
@@ -224,16 +224,19 @@ Serial.print("use bno:");
 
   Serial.println("MCP check now....");
 
-  if (Relay_Type == 1) {
-
-    error = (mcp.begin_I2C(0X20, &Wire1));
-    Serial.print("MCP Status:");
+  if (useMCP23017) {
+    Serial.println("MCP23017 check now....");
+    error = mcp.begin_I2C(0x20, &Wire1);
+    Serial.print("MCP Status: ");
     Serial.println(error);
-    if (error == 0) {
-      Relay_Type = false;
-    }
+    
+    if (error != 0) {
+        Serial.println("MCP23017 not found - relay control disabled");
+        useMCP23017 = false;
+    } else {
+        Serial.println("MCP23017 initialized successfully");
 
-    delay(100);
+delay(100);
 
     mcp.pinMode(8, OUTPUT);
     mcp.pinMode(9, OUTPUT);
@@ -253,10 +256,20 @@ Serial.print("use bno:");
     mcp.digitalWrite(13, LOW);
     mcp.digitalWrite(14, LOW);
     mcp.digitalWrite(15, LOW);
+
+        // Pin-Konfiguration nur bei Erfolg
+       
+    }
+    
+    Serial.print("MCP Status done: ");
+    Serial.println(useMCP23017 ? "ENABLED" : "DISABLED");
+
+
   }
 
-  Serial.print("MCP Status done:");
-  Serial.println(Relay_Type);
+  
+
+  
 
   if (isKeya) {
     Serial.println("Right... time for some CANBUS! And, we're dedicated to SteeringwheelMotor here");
