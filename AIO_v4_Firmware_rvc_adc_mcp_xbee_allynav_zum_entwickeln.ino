@@ -26,31 +26,6 @@ int8_t KeyaCurrentSensorReading = 0;
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_256> Keya_Bus;
 
 
-// Single antenna, IMU, & dual antenna code for AgOpenGPS
-// If dual right antenna is for position (must enter this location in AgOpen), left Antenna is for heading & roll
-//
-// connection plan:
-// Teensy Serial 7 RX (28) to F9P Position receiver TX1 (Position data)
-// Teensy Serial 7 TX (29) to F9P Position receiver RX1 (RTCM data for RTK)
-// Teensy Serial 2 RX (7) to F9P Heading receiver TX1 (Relative position from left antenna to right antenna)
-// Teensy Serial 2 TX (8) to F9P Heading receiver RX1
-// F9P Position receiver TX2 to F9P Heading receiver RX2 (RTCM data for Moving Base)
-//
-// Configuration of receiver
-// Position F9P
-// CFG-RATE-MEAS - 100 ms -> 10 Hz
-// CFG-UART1-BAUDRATE 460800
-// Serial 1 In - RTCM (Correction Data from AOG)
-// Serial 1 Out - NMEA GGA
-// CFG-UART2-BAUDRATE 460800
-// Serial 2 Out - RTCM 1074,1084,1094,1124,1230,4072.0 (Correction data for Heading F9P, Moving Base)
-//
-// Heading F9P
-// CFG-RATE-MEAS - 100 ms -> 10 Hz
-// CFG-UART1-BAUDRATE 460800
-// Serial 1 Out - UBX-NAV-RELPOSNED
-// CFG-UART2-BAUDRATE 460800
-// Serial 2 In RTCM
 
 /************************* User Settings *************************/
 // Serial Ports
@@ -60,6 +35,9 @@ HardwareSerial* SerialGPS = &Serial7;  //Main postion receiver (GGA)
 HardwareSerial* SerialIMU = &Serial5;  //IMU BNO-085
 
 constexpr int serial_buffer_size = 512;
+
+#define SERIAL_TX_BUFFER_SIZE 512
+#define SERIAL_RX_BUFFER_SIZE 512
 
 const int32_t baudGPS = 115200;
 const int32_t baudRTK = 115200;  // most are using Xbee radios with default of 115200
@@ -185,17 +163,12 @@ void setup() {
   Serial.println("Start setup");
 
   SerialXbee->begin(baudGPS);
-  SerialXbee->addMemoryForRead(GPSrxbuffer, serial_buffer_size);
-  SerialXbee->addMemoryForWrite(GPStxbuffer, serial_buffer_size);
   delay(10);
 
   SerialGPS->begin(baudGPS);
-  SerialGPS->addMemoryForRead(GPSrxbuffer, serial_buffer_size);
-  SerialGPS->addMemoryForWrite(GPStxbuffer, serial_buffer_size);
 
   delay(10);
   SerialRTK.begin(baudRTK);
-  SerialRTK.addMemoryForRead(RTKrxbuffer, serial_buffer_size);
 
 
 
