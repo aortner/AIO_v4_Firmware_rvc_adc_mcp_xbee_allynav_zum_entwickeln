@@ -59,7 +59,21 @@ void CAN_Setup() {
      Serial.print("PGN is set to : ");
      Serial.println(KeyaPGN,HEX);
 
-     CAN_message_t msg = { 0x23, 0x0d, 0x20, 0x01, 0, 0, 0, 0 };  // enable
+     CAN_message_t msg;
+     
+msg.flags.extended = 1;
+msg.id = 0x06c73001;
+msg.len = 8;
+msg.buf[0] = 0x23;
+msg.buf[1] = 0x0d;
+msg.buf[2] = 0x20;
+msg.buf[3] = 0x01;
+msg.buf[4] = 0;
+msg.buf[5] = 0;
+msg.buf[6] = 0;
+msg.buf[7] = 0;
+
+ 
 
 
 setally(90,500);
@@ -135,7 +149,7 @@ bool isPatternMatch(const CAN_message_t& message, const uint8_t* pattern, size_t
 
 void setally(int par, int value)
 {
-   CAN_message_t msg = { 0x23, 0x0d, 0x20, 0x01, 0, 0, 0, 0 }; 
+   CAN_message_t msg; 
   
     msg.flags.extended = 1;
     msg.id = 0x06c73001;
