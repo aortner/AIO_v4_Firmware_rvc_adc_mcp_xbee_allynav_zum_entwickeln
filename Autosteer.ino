@@ -399,7 +399,7 @@ void autosteerLoop() {
         steeringPosition = (steeringPosition >> 1);  //bit shift by 2  0 to 13610 is 0 to 5v
         helloSteerPosition = steeringPosition - 6800;
       }
-    }
+    
 
 
     if (Relay_Type) {

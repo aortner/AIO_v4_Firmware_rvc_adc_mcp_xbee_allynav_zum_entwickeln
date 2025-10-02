@@ -1,9 +1,9 @@
-bool useteensyadc = false;
 bool gnsspassThrough = false;
 bool Relay_Type = 0;  // set to 1 if using mcp23017 port expander
 bool xbee = 0;
 bool isKeya = true;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
+
 
 HardwareSerial* SerialXbee = &Serial2;  //xbee modul
 
