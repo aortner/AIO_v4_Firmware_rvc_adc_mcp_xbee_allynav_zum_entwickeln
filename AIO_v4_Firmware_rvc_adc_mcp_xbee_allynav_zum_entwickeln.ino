@@ -5,7 +5,7 @@ bool isKeya = true;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
 
 
-HardwareSerial* SerialXbee = &Serial2;  //xbee modul
+//HardwareSerial* SerialXbee = &Serial2;  //xbee modul
 
 String nmeainput;
 
@@ -46,13 +46,14 @@ const int32_t baudRTK = 115200;  // most are using Xbee radios with default of 1
 #define RAD_TO_DEG_X_10 572.95779513082320876798154814105
 
 //Status LED's
-#define GGAReceivedLED 13         //Teensy onboard LED
-#define Power_on_LED 5            //Red
-#define Ethernet_Active_LED 6     //Green
-#define GPSRED_LED 12              //Red (Flashing = NO IMU or Dual, ON = GPS fix with IMU)
-#define GPSGREEN_LED 10           //Green (Flashing = Dual bad, ON = Dual good)
+
 #define AUTOSTEER_STANDBY_LED 11  //Red
-#define AUTOSTEER_ACTIVE_LED 9   //Green
+#define AUTOSTEER_ACTIVE_LED 7   //Green
+#define PCB_RELAY_1 8  //pcb relay
+#define PCB_RELAY_2 9   // pcb relay
+
+
+
 
 /*****************************************************************/
 
@@ -146,13 +147,15 @@ void setup() {
   Serial.print("CPU speed set to: ");
   Serial.println(F_CPU_ACTUAL);
 
-  pinMode(GGAReceivedLED, OUTPUT);
-  pinMode(Power_on_LED, OUTPUT);
-  pinMode(Ethernet_Active_LED, OUTPUT);
-  pinMode(GPSRED_LED, OUTPUT);
-  pinMode(GPSGREEN_LED, OUTPUT);
+  
   pinMode(AUTOSTEER_STANDBY_LED, OUTPUT);
   pinMode(AUTOSTEER_ACTIVE_LED, OUTPUT);
+
+  pinMode(PCB_RELAY_1, OUTPUT);
+  pinMode(PCB_RELAY_2, OUTPUT);
+  digitalWrite(PCB_RELAY_1,LOW);
+  digitalWrite(PCB_RELAY_2,LOW);
+
 
   // the dash means wildcard
   parser.setErrorHandler(errorHandler);
@@ -162,8 +165,7 @@ void setup() {
   delay(10);
   Serial.println("Start setup");
 
-  SerialXbee->begin(baudGPS);
-  delay(10);
+  
 
   SerialGPS->begin(baudGPS);
 
@@ -230,7 +232,7 @@ Serial.print("use bno:");
     Serial.print("MCP Status: ");
     Serial.println(error);
     
-    if (error != 0) {
+    if (error == 0) {
         Serial.println("MCP23017 not found - relay control disabled");
         useMCP23017 = false;
     } else {
@@ -256,6 +258,8 @@ delay(100);
     mcp.digitalWrite(13, LOW);
     mcp.digitalWrite(14, LOW);
     mcp.digitalWrite(15, LOW);
+
+    Serial.print("MCP PINS Enabeld! ");
 
         // Pin-Konfiguration nur bei Erfolg
        
@@ -300,16 +304,10 @@ void loop() {
       char c = SerialGPS->read();
       parser << c;
 
-      if (xbee) {
-        SerialXbee->write(c);
-      }
+      
     }
   }
-  //checkk xbee for data
-  if (SerialXbee->available()) {
-    char c = SerialXbee->read();  // Zeichen von Xbee lesen
-    SerialGPS->write(c);          // Zeichen an GPS senden (Serial2)
-  }
+  
 
 
   // Check for RTK via Radio
@@ -339,7 +337,7 @@ void loop() {
   if (relposnedByteCount > 71) {
     if (calcChecksum()) {
       //if(deBug) Serial.println("RelPos Message Recived");
-      digitalWrite(GPSRED_LED, LOW);  //Turn red GPS LED OFF (we are now in dual mode so green LED)
+     
       useDual = true;
       relPosDecode();
     }
@@ -364,19 +362,16 @@ if(!gnsspassThrough)
   //GGA timeout, turn off GPS LED's etc
   if (GGAReadyTime > 10000)  //GGA age over 10sec
   {
-    digitalWrite(GPSRED_LED, LOW);
-    digitalWrite(GPSGREEN_LED, LOW);
+    
     useDual = false;
   }
 
   if (ethernetLinkCheck > 10000) {
     if (Ethernet.linkStatus() == LinkON) {
       ethernetLinkCheck = 0;
-      digitalWrite(Power_on_LED, 0);
-      digitalWrite(Ethernet_Active_LED, 1);
+      
     } else {
-      digitalWrite(Power_on_LED, 1);
-      digitalWrite(Ethernet_Active_LED, 0);
+      
     }
   }
 

@@ -45,8 +45,8 @@ float outputWAS[] = { -50.00, -45.0, -40.0, -35.0, -30.0, -25.0, -20.0, -15.0, -
 #define REMOTE_PIN 37
 
 //Define sensor pin for current or pressure sensor
-#define CURRENT_SENSOR_PIN A17
-#define PRESSURE_SENSOR_PIN A10
+#define CURRENT_SENSOR_PIN A17  //41
+#define PRESSURE_SENSOR_PIN A10  //24
 
 #define CONST_180_DIVIDED_BY_PI 57.2957795130823
 
