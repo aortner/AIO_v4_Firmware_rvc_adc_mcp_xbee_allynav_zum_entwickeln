@@ -1,4 +1,6 @@
 bool isKeyaSteeringActive = false;
+int previousPwmDrive = 0;
+
 
 
 /*inputWAS

@@ -78,17 +78,17 @@ msg.buf[7] = 0;
  
 
 
-setally(90,500);
-setally(91,1600);
-setally(92,500);
-setally(93,1000);
+setally(90,250);
+setally(91,800);
+setally(92,250);
+setally(93,800);
 
-setally(100,400);
-setally(101,400);
+setally(100,300);
+setally(101,300);
 setally(102,300);
-setally(103,225);
-setally(104,400);
-setally(105,400);
+setally(103,200);
+setally(104,300);
+setally(105,300);
 
 setally(256,3000);
 setally(252,180);
@@ -111,7 +111,8 @@ setally(252,180);
 
 
    
-   
+           disableKeyaSteer();     // Einmaligen Deaktivierungsbefehl senden
+
    
   } else {
     Keya_Bus.setBaudRate(250000);
@@ -142,6 +143,8 @@ setally(252,180);
   //	Keya_Bus.write(msgV);
   delay(1000);
   if (debugKeya) Serial.println("Initialised Keya CANBUS");
+          disableKeyaSteer();     // Einmaligen Deaktivierungsbefehl senden
+
 }
 
 bool isPatternMatch(const CAN_message_t& message, const uint8_t* pattern, size_t patternSize) {
@@ -256,6 +259,7 @@ void SteerKeya(int steerSpeed) {
 
   // Die Nachricht senden. Keine Aktivierungs-/Deaktivierungs-Logik mehr hier!
   Keya_Bus.write(KeyaBusSendData);
+  enableKeyaSteer();
 }
 
 

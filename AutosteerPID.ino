@@ -73,47 +73,54 @@ else allyfaktor=1;
 //#########################################################################################
 
 void motorDrive(void) {
-  // Used with Cytron MD30C Driver
-  // Steering Motor
-  // Dir + PWM Signal
- 
   if (isKeya) {
-    //Serial.println(pwmDrive);
-    if (pwmDrive == 0) {
-      // send disable
-      disableKeyaSteer();
-      pwmDisplay = pwmDrive;
-    } else {
+    // HAUPTSCHALTER: Führe die Motorlogik NUR aus, wenn die Lenkung aktiv sein soll.
+    if (isKeyaSteeringActive) {
+      // Intelligente Aktivierung für das "Zero-Speed-Stop"-Problem.
+      // Wird ausgelöst, wenn von Stillstand zu Bewegung gewechselt wird.
+      if (previousPwmDrive == 0 && pwmDrive != 0) {
+        enableKeyaSteer();
+      }
+      // Sende immer den aktuellen Geschwindigkeitsbefehl.
+      // pwmDrive = 0 bedeutet jetzt "aktiv halten, aber nicht bewegen".
       SteerKeya(pwmDrive);
-      if (pwmDrive < 0) {
-        pwmDisplay = -1 * pwmDrive;
-      } else pwmDisplay = pwmDrive;
     }
+    // Wenn isKeyaSteeringActive == false ist, passiert hier absolut nichts.
+    // Der disable-Befehl wurde bereits gesendet.
+
+    // Anzeige-Logik bleibt bestehen
+    pwmDisplay = abs(pwmDrive);
+
   } else if (steerConfig.CytronDriver) {
-    // Cytron MD30C Driver Dir + PWM Signal
+    // Cytron-Logik (unverändert)
     if (pwmDrive >= 0) {
-      bitSet(PORTD, 4);  //set the correct direction
+      digitalWrite(DIR1_RL_ENABLE, HIGH);
     } else {
-      bitClear(PORTD, 4);
+      digitalWrite(DIR1_RL_ENABLE, LOW);
       pwmDrive = -1 * pwmDrive;
     }
-
-    //write out the 0 to 255 value
     analogWrite(PWM1_LPWM, pwmDrive);
     pwmDisplay = pwmDrive;
-  } else {
-    // IBT 2 Driver Dir1 connected to BOTH enables
-    // PWM Left + PWM Right Signal
 
+  } else {
+    // IBT 2-Logik (unverändert)
     if (pwmDrive > 0) {
-      analogWrite(PWM2_RPWM, 0);  //Turn off before other one on
+      analogWrite(PWM2_RPWM, 0);
       analogWrite(PWM1_LPWM, pwmDrive);
     } else {
       pwmDrive = -1 * pwmDrive;
-      analogWrite(PWM1_LPWM, 0);  //Turn off before other one on
+      analogWrite(PWM1_LPWM, 0);
       analogWrite(PWM2_RPWM, pwmDrive);
     }
-
     pwmDisplay = pwmDrive;
+  }
+
+  // WICHTIG: Aktualisiere den letzten Zustand am Ende der Funktion.
+  // Wenn die Lenkung inaktiv ist, wird previousPwmDrive auf 0 zurückgesetzt.
+  // Das stellt sicher, dass die nächste Aktivierung den enable-Befehl korrekt auslöst.
+  if (isKeyaSteeringActive) {
+    previousPwmDrive = pwmDrive;
+  } else {
+    previousPwmDrive = 0;
   }
 }
