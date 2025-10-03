@@ -488,7 +488,7 @@ void autosteerLoop() {
 
     steerAngleError = steerAngleActual - steerAngleSetPoint;
 
-    if (gpsSpeed < 0.2) steerAngleError = 0;
+   // if (gpsSpeed < 0.2) steerAngleError = 0;
 
     calcSteeringPID();
     motorDrive(); // Sendet jetzt nur noch Geschwindigkeitsbefehle

@@ -1,5 +1,10 @@
 void calcSteeringPID(void) {
 
+ if (gpsSpeed < 0.2) {
+    pwmDrive = 0; // Lenkmotor komplett stoppen
+    return;       // Funktion sofort verlassen, keine weiteren Berechnungen
+  }
+  
 
 // Ersetzt die Originalzeile:
 const float AMPLITUDE = 2.0;      // Die maximale Abweichung in Grad (also ±2.0 Grad)

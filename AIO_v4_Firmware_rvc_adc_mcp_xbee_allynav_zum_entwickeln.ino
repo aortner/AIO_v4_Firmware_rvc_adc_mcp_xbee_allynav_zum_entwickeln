@@ -511,20 +511,7 @@ void loop() {
     gnssTimeoutCount++;
     sendGnssBuffer();
   }
-  // ✅ Timeout-Prüfung: Wenn länger als 1 Sekunde keine neue Nachricht
-  if (gnsspassThrough && gnssBufferIndex > 0 && gnssBufferTimeout > GNSS_BUFFER_TIMEOUT_MS) {
-    Serial.print("GNSS timeout - sending incomplete buffer (");
-    Serial.print(gnssBufferIndex);
-    Serial.println(" bytes)");
-    
-    // Zeige Buffer-Inhalt für Debug
-    Serial.print("Buffer: ");
-    gnssPassThroughBuffer[gnssBufferIndex] = '\0';
-    Serial.println(gnssPassThroughBuffer);
-    
-    gnssTimeoutCount++;
-    sendGnssBuffer();  // Sende trotzdem, was wir haben
-  }
+ 
 
 
   // Check for RTK via Radio
