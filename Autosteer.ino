@@ -1,6 +1,9 @@
 bool isKeyaSteeringActive = false;
 int previousPwmDrive = 0;
 
+elapsedMillis adsReadTimer;                  // Timer zur Überwachung des ADC
+const uint16_t ADS_TIMEOUT_MS = 250;       // Max. Zeit in ms, die wir auf eine Antwort warten
+bool adsOk = true;                         // Status-Flag für den ADC
 
 
 /*inputWAS
@@ -252,6 +255,8 @@ void autosteerSetup() {
 
   adc.setSampleRate(ADS1115_REG_CONFIG_DR_128SPS);  //128 samples per second
   adc.setGain(ADS1115_REG_CONFIG_PGA_6_144V);
+  adc.triggerConversion();
+  adsReadTimer = 0;
 
 }  // End of Setup
 
@@ -377,27 +382,54 @@ void autosteerLoop() {
 
     
 
-      //get steering position
-      if (steerConfig.SingleInputWAS)  //Single Input ADS
-      {
+      // #########################################################################
+    // ## NEUE, NICHT-BLOCKIERENDE LOGIK ZUM LESEN DES LENKWINKELSENSORS (ADS1115)
+    // #########################################################################
+    if (adc.isConversionDone()) {
+      // Ein neuer Messwert ist fertig!
+      steeringPosition = adc.getConversion(); // Wert sicher und ohne Blockieren lesen
+
+      // Konfiguration für die NÄCHSTE Messung setzen
+      if (steerConfig.SingleInputWAS) {
         adc.setMux(ADS1115_REG_CONFIG_MUX_SINGLE_0);
-        steeringPosition = adc.getConversion();
-        adc.triggerConversion();  //ADS1115 Single Mode
-
-        steeringPosition = (steeringPosition >> 1);  //bit shift by 2  0 to 13610 is 0 to 5v
-        helloSteerPosition = steeringPosition - 6800;
-
-      }
-
-      else  //ADS1115 Differential Mode
-      {
+      } else {
         adc.setMux(ADS1115_REG_CONFIG_MUX_DIFF_0_1);
-        steeringPosition = adc.getConversion();
-        adc.triggerConversion();
+      }
+      
+      adc.triggerConversion(); // Nächste Messung sofort starten
+      
+      adsReadTimer = 0; // Timeout-Timer zurücksetzen
+      adsOk = true;     // Sensor-Status ist in Ordnung
 
-        steeringPosition = (steeringPosition >> 1);  //bit shift by 2  0 to 13610 is 0 to 5v
+    } else if (adsReadTimer > ADS_TIMEOUT_MS) {
+      // TIMEOUT! Der Sensor hat zu lange nicht geantwortet.
+      adsOk = false; // Sensor-Status auf "Fehler" setzen
+      
+      // SICHERHEITSABSCHALTUNG!
+      // Wir zwingen die Lenkung in den Aus-Zustand, da wir die Radposition nicht mehr kennen.
+      steerSwitch = 1;
+      watchdogTimer = WATCHDOG_FORCE_VALUE;
+      
+      Serial.println("!!! FEHLER: ADS1115 antwortet nicht - Lenkung DEAKTIVIERT !!!");
+      
+      // Versuche, den Sensor für den nächsten Durchlauf neu zu starten
+      adc.triggerConversion();
+      adsReadTimer = 0;
+    }
+
+    // Die eigentliche Berechnung verwendet immer den letzten gültigen `steeringPosition`-Wert
+    if (adsOk) {
+      if (steerConfig.SingleInputWAS) {
+        steeringPosition = (steeringPosition >> 1);
+        helloSteerPosition = steeringPosition - 6800;
+      } else {
+        steeringPosition = (steeringPosition >> 1);
         helloSteerPosition = steeringPosition - 6800;
       }
+    }
+    // #########################################################################
+    // ## ENDE DER NEUEN LOGIK
+    // #########################################################################
     
 
 

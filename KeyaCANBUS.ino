@@ -42,6 +42,8 @@ int keyasensorSample = 0;
 
 const bool debugKeya = true;
 
+//nie benutzt
+/*
 void keyaSend(uint8_t data[]) {
   //TODO Use this optimisation function once we're happy things are moving the right way
   CAN_message_t KeyaBusSendData;
@@ -51,6 +53,8 @@ void keyaSend(uint8_t data[]) {
   memcpy(KeyaBusSendData.buf, data, sizeof(data));
   Keya_Bus.write(KeyaBusSendData);
 }
+
+*/
 
 void CAN_Setup() {
   Keya_Bus.begin();
@@ -283,7 +287,7 @@ void KeyaBus_Receive() {
 
       KeyaCurrentSensorReading = KeyaCurrentSensorReading * 0.6 + keyasensorSample * 0.4;
          
-  if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
+  //if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
 
       int16_t targets = KeyaBusReceiveData.buf[4] * 256 + KeyaBusReceiveData.buf[5];
 
