@@ -1,3 +1,6 @@
+bool isKeyaSteeringActive = false;
+
+
 /*inputWAS
    UDP Autosteer code for Teensy 4.1
    For AgOpenGPS
@@ -428,51 +431,66 @@ void autosteerLoop() {
     float mappedWAS = multiMap<float>(steerAngleActual, inputWAS, outputWAS, 21);
     steerAngleActual = mappedWAS;
 
-    if (watchdogTimer < WATCHDOG_THRESHOLD) {
-      //Enable H Bridge for IBT2, hyd aux, etc for cytron
-      if (!isKeya) {
-        if (steerConfig.CytronDriver) {
-          if (steerConfig.IsRelayActiveHigh) {
-            digitalWrite(PWM2_RPWM, 0);
-          } else {
-            digitalWrite(PWM2_RPWM, 1);
-          }
-        } else digitalWrite(DIR1_RL_ENABLE, 1);
-      }
-      steerAngleError = steerAngleActual - steerAngleSetPoint;  //calculate the steering error
-      //if (abs(steerAngleError)< steerSettings.lowPWM) steerAngleError = 0;
+  if (watchdogTimer < WATCHDOG_THRESHOLD) 
+{
+    // Autolenkung ist AKTIV
 
-      //Don't turn wheels if speed less than 0.3km/hr
-      if (gpsSpeed < 0.2) steerAngleError = 0;
-
-      calcSteeringPID();  //do the pid
-      motorDrive();       //out to motors the pwm value
-      // Autosteer Led goes GREEN if autosteering
-
-      digitalWrite(AUTOSTEER_ACTIVE_LED, 1);
-      digitalWrite(AUTOSTEER_STANDBY_LED, 0);
-    } else {
-      //we've lost the comm to AgOpenGPS, or just stop request
-      //Disable H Bridge for IBT2, hyd aux, etc for cytron
-      if (!isKeya) {
-      if (steerConfig.CytronDriver) {
-        if (steerConfig.IsRelayActiveHigh) {
-          digitalWrite(PWM2_RPWM, 1);
-        } else {
-          digitalWrite(PWM2_RPWM, 0);
-        }
-      } else digitalWrite(DIR1_RL_ENABLE, 0);  //IBT2
-      }
-
-      pwmDrive = 0;  //turn off steering motor
-      if (isKeya) disableKeyaSteer(); // If we lost the connection to AOG, definitely disable steering
-      motorDrive();  //out to motors the pwm value
-      pulseCount = 0;
-      // Autosteer Led goes back to RED when autosteering is stopped
-      digitalWrite(AUTOSTEER_STANDBY_LED, 1);
-      digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
+    // <-- NEU: Prüfen, ob der Keya-Motor GERADE EBEN erst aktiviert werden muss
+    if (isKeya && !isKeyaSteeringActive) {
+        enableKeyaSteer();      // Einmaligen Aktivierungsbefehl senden
+        isKeyaSteeringActive = true; // Zustand merken, damit dies nicht erneut passiert
     }
-  }  //end of timed loop
+
+    // Bestehende Logik für Cytron / IBT2 (unverändert)
+    if (!isKeya) {
+        if (steerConfig.CytronDriver) {
+            if (steerConfig.IsRelayActiveHigh) {
+                digitalWrite(PWM2_RPWM, 0);
+            } else {
+                digitalWrite(PWM2_RPWM, 1);
+            }
+        } else digitalWrite(DIR1_RL_ENABLE, 1);
+    }
+
+    steerAngleError = steerAngleActual - steerAngleSetPoint;
+
+    if (gpsSpeed < 0.2) steerAngleError = 0;
+
+    calcSteeringPID();
+    motorDrive(); // Sendet jetzt nur noch Geschwindigkeitsbefehle
+
+    digitalWrite(AUTOSTEER_ACTIVE_LED, 1);
+    digitalWrite(AUTOSTEER_STANDBY_LED, 0);
+} 
+else 
+{
+    // Autolenkung ist INAKTIV
+
+    // <-- NEU: Prüfen, ob der Keya-Motor GERADE EBEN erst deaktiviert werden muss
+    if (isKeya && isKeyaSteeringActive) {
+        disableKeyaSteer();     // Einmaligen Deaktivierungsbefehl senden
+        isKeyaSteeringActive = false; // Zustand merken
+    }
+
+    // Bestehende Logik für Cytron / IBT2 (unverändert)
+    if (!isKeya) {
+        if (steerConfig.CytronDriver) {
+            if (steerConfig.IsRelayActiveHigh) {
+                digitalWrite(PWM2_RPWM, 1);
+            } else {
+                digitalWrite(PWM2_RPWM, 0);
+            }
+        } else digitalWrite(DIR1_RL_ENABLE, 0);
+    }
+
+    pwmDrive = 0; // Lenkmotor stoppen
+    motorDrive(); // Sendet den "Geschwindigkeit Null" Befehl
+    pulseCount = 0;
+
+    digitalWrite(AUTOSTEER_STANDBY_LED, 1);
+    digitalWrite(AUTOSTEER_ACTIVE_LED, 0);
+}
+ } //end of timed loop - Dies war in Ihrem Snippet, stellen Sie sicher, dass es am Ende bleibt
 
   //This runs continuously, outside of the timed loop, keeps checking for new udpData, turn sense
   //delay(1);

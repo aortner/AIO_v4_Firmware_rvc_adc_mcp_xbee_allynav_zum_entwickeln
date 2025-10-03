@@ -12,6 +12,8 @@ uint64_t KeyaPGN = 0x06000001;
 #endif
 
 
+
+
 //Enable	0x23 0x0D 0x20 0x01 0x00 0x00 0x00 0x00
 //Disable	0x23 0x0C 0x20 0x01 0x00 0x00 0x00 0x00
 //Fast clockwise	0x23 0x00 0x20 0x01 0xFC 0x18 0xFF 0xFF (0xfc18 signed dec is - 1000
@@ -220,19 +222,16 @@ void enableKeyaSteer() {
 
 void SteerKeya(int steerSpeed) {
 
- 
-
+  
+ // Wandelt den PWM-Wert in die Motor-Geschwindigkeit um
   int actualSpeed = map(steerSpeed, -255, 255, -900, 900);
- //Serial.println(steerSpeed);
-  if (steerSpeed == 0) {
-    disableKeyaSteer();
-    Serial.println("pwmDrive zero - disabling");
-    return;  // don't need to go any further, if we're disabling, we're disabling
-  }
+
+
   if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
   if (debugKeya) Serial.println("   I converted that to speed " + String(actualSpeed));
 
 
+   // CAN-Nachricht vorbereiten
   CAN_message_t KeyaBusSendData;
   KeyaBusSendData.id = KeyaPGN;
   KeyaBusSendData.flags.extended = true;
@@ -241,21 +240,22 @@ void SteerKeya(int steerSpeed) {
   KeyaBusSendData.buf[1] = 0x00;
   KeyaBusSendData.buf[2] = 0x20;
   KeyaBusSendData.buf[3] = 0x01;
-  if (steerSpeed < 0) {
-    KeyaBusSendData.buf[4] = highByte(actualSpeed);  // TODO take PWM in instead for speed (this is -1000)
+
+  // Geschwindigkeits- und Richtungsinformationen eintragen
+  if (actualSpeed < 0) {
+    KeyaBusSendData.buf[4] = highByte(actualSpeed);
     KeyaBusSendData.buf[5] = lowByte(actualSpeed);
     KeyaBusSendData.buf[6] = 0xff;
     KeyaBusSendData.buf[7] = 0xff;
-   //  Serial.println ("  pwmDrive < zero - clockwise - steerSpeed " + String(steerSpeed));
   } else {
     KeyaBusSendData.buf[4] = highByte(actualSpeed);
     KeyaBusSendData.buf[5] = lowByte(actualSpeed);
     KeyaBusSendData.buf[6] = 0x00;
     KeyaBusSendData.buf[7] = 0x00;
-   //Serial.println("pwmDrive > zero - anticlock-clockwise - steerSpeed " + String(steerSpeed));
   }
+
+  // Die Nachricht senden. Keine Aktivierungs-/Deaktivierungs-Logik mehr hier!
   Keya_Bus.write(KeyaBusSendData);
-  enableKeyaSteer();
 }
 
 
