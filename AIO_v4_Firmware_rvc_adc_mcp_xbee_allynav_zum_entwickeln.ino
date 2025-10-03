@@ -1,5 +1,8 @@
-bool gnsspassThrough = true;
+bool gnsspassThrough = false;
 bool useMCP23017 = true;  
+
+elapsedMillis imuDataTimer; // Timer zur Überwachung der IMU-Daten
+const uint16_t IMU_TIMEOUT_MS = 1000; // 1 Sekunde Timeout
 
 bool isKeya = true;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
@@ -267,27 +270,36 @@ void setup() {
 
 
 
-  Serial.println("here");
+    Serial.println("here");
 
   SerialIMU->begin(115200);
   rvc.begin(SerialIMU);
 
-  static elapsedMillis rvcBnoTimer = 0;
-  Serial.println("\r\nChecking for serial BNO08x");
-  while (rvcBnoTimer < 1000) {
-    //check if new bnoData
+  // ####################################################################
+  // ## NEUER, NICHT-BLOCKIERENDER CHECK FÜR DAS SETUP
+  // ####################################################################
+  Serial.println("\r\nChecking for serial BNO08x (max 500ms)...");
+  elapsedMillis bnoSetupTimer = 0;
+  while (bnoSetupTimer < 500) { // Versuche es für eine halbe Sekunde
     if (rvc.read(&bnoData)) {
+      // Erfolg! Sensor wurde schnell gefunden.
       useBNO08xRVC = true;
       Serial.println("Serial BNO08x Good To Go :-)");
-      imuHandler();
-      break;
+      imuHandler(); // Verarbeite die erste Messung
+      break;        // Verlasse die while-Schleife
     }
   }
-  if (!useBNO08xRVC) Serial.println("No Serial BNO08x not Connected or Found");
 
-Serial.print("use bno:");
- Serial.println(useBNO08xRVC);
-
+  // Diese Meldung wird nur angezeigt, wenn der Sensor in der Zeit nicht gefunden wurde
+  if (!useBNO08xRVC) {
+    Serial.println("No Serial BNO08x found during startup check. Continuing to check in main loop...");
+  }
+  
+  // Der Timeout-Timer für die Hauptschleife wird in jedem Fall gestartet
+  imuDataTimer = 0;
+  // ####################################################################
+  // ## ENDE DES NEUEN BLOCKS
+  // ####################################################################
 
   Serial.println("\r\nEnd setup, waiting for GPS...\r\n");
 
@@ -365,6 +377,10 @@ delay(100);
 }
 
 void loop() {
+
+
+
+
 
  if (isKeya) {
   KeyaBus_Receive();
@@ -545,17 +561,31 @@ void loop() {
     relposnedByteCount = 0;
   }
 
-if(!gnsspassThrough)
-{
- //RVC BNO08x
-  if (rvc.read(&bnoData))  useBNO08xRVC = true;
-}
- 
+  // ###############################################################
+  // ## BNO08x IMU LOGIK - NUR WENN gnsspassThrough DEAKTIVIERT IST
+  // ###############################################################
+  if (!gnsspassThrough) {
+    // Prüfe, ob genügend Daten für ein komplettes Paket im Puffer sind
+    if (SerialIMU->available() >= 19) {
+        if (rvc.read(&bnoData)) {
+         // Serial.println("Erfolgreich ein komplettes Datenpaket empfangen");
+            // Erfolgreich ein komplettes Datenpaket empfangen
+            if (!useBNO08xRVC) {
+                Serial.println("Serial BNO08x Good To Go :-) Ich bin wieder da!");
+            }
+            useBNO08xRVC = true;
+            imuDataTimer = 0;
+            imuHandler();
+        }
+    }
 
-  if (useBNO08xRVC && bnoTimer > 70 && bnoTrigger) {
-    bnoTrigger = false;
-    imuHandler();  //Get IMU data ready
+    // Prüfen, ob der IMU aufgehört hat zu senden (Timeout)
+    if (useBNO08xRVC && imuDataTimer > IMU_TIMEOUT_MS) {
+        Serial.println("!!! FEHLER: BNO08x IMU Timeout - Deaktiviere IMU. !!!");
+        useBNO08xRVC = false;
+    }
   }
+  // ###############################################################
 
   if (Autosteer_running) autosteerLoop();
   else ReceiveUdp();
