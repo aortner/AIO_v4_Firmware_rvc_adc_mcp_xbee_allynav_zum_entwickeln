@@ -115,6 +115,7 @@ float steerAngleActual = 0;
 float steerAngleSetPoint = 0;  //the desired angle from AgOpen
 int16_t steeringPosition = 0;  //from steering sensor
 float steerAngleError = 0;     //setpoint - actual
+int allyfaktor = 1;
 
 //pwm variables
 int16_t pwmDrive = 0, pwmDisplay = 0;

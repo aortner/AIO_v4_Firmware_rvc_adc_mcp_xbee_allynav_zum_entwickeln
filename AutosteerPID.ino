@@ -1,6 +1,15 @@
 void calcSteeringPID(void) {
+
+
+if(isallnavy)
+{
+allyfaktor=2;
+}
+else allyfaktor=1;
+
+
   //Proportional only
-  pValue = (steerSettings.Kp/2) * steerAngleError;
+  pValue = (steerSettings.Kp/allyfaktor) * steerAngleError;
   pwmDrive = (int16_t)pValue;
 
   errorAbs = fabs(steerAngleError);

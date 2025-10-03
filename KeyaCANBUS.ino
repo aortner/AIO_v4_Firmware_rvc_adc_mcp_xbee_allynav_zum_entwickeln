@@ -53,7 +53,7 @@ void keyaSend(uint8_t data[]) {
 void CAN_Setup() {
   Keya_Bus.begin();
 
-  if (isallnavy == true) {
+  if (isallnavy) {
     Keya_Bus.setBaudRate(500000);
     Serial.println("Set Baud to 500000 for allynav");
      Serial.print("PGN is set to : ");
