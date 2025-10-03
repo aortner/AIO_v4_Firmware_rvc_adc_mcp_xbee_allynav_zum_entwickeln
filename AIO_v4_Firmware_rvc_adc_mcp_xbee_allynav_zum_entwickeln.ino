@@ -20,7 +20,7 @@ Adafruit_MCP23X17 mcp;
 uint8_t error;
 
 
-int8_t KeyaCurrentSensorReading = 0;
+uint8_t KeyaCurrentSensorReading = 0;
 #include <FlexCAN_T4.h>
 
 // Seems to work for CAN2, not sure why it didn't for CAN1

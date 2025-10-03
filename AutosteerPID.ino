@@ -1,6 +1,15 @@
 void calcSteeringPID(void) {
 
 
+// Ersetzt die Originalzeile:
+const float AMPLITUDE = 2.0;      // Die maximale Abweichung in Grad (also ±2.0 Grad)
+const float PERIOD_MS = 3000.0;   // Die Dauer einer kompletten Schwingung in Millisekunden (z.B. 6 Sekunden)
+
+float sineWaveError = AMPLITUDE * sin(millis() * (TWO_PI / PERIOD_MS));
+steerAngleError = sineWaveError;
+
+
+
 if(isallnavy)
 {
 allyfaktor=2;

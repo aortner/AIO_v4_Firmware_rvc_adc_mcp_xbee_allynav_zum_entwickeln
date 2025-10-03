@@ -230,8 +230,8 @@ void SteerKeya(int steerSpeed) {
   int actualSpeed = map(steerSpeed, -255, 255, -900, 900);
 
 
-  if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
-  if (debugKeya) Serial.println("   I converted that to speed " + String(actualSpeed));
+ // if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
+ // if (debugKeya) Serial.println("   I converted that to speed " + String(actualSpeed));
 
 
    // CAN-Nachricht vorbereiten
@@ -282,8 +282,8 @@ void KeyaBus_Receive() {
       keyasensorSample = KeyaBusReceiveData.buf[0] * 256 + KeyaBusReceiveData.buf[1];
 
       KeyaCurrentSensorReading = KeyaCurrentSensorReading * 0.6 + keyasensorSample * 0.4;
-
-    //  if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
+         
+  if (debugKeya) Serial.println("Heartbeat current is " + String(KeyaCurrentSensorReading));
 
       int16_t targets = KeyaBusReceiveData.buf[4] * 256 + KeyaBusReceiveData.buf[5];
 
