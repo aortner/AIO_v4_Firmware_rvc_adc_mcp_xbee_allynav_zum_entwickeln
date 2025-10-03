@@ -728,7 +728,7 @@ void ReceiveUdp() {
         if (bitRead(sett, 3)) steerConfig.SingleInputWAS = 1;
         else steerConfig.SingleInputWAS = 0;
         if (bitRead(sett, 4)) steerConfig.CytronDriver = 1;
-        else steerConfig.CytronDriver = 0;
+        else steerConfig.CytronDriver = 1;
         if (bitRead(sett, 5)) steerConfig.SteerSwitch = 1;
         else steerConfig.SteerSwitch = 0;
         if (bitRead(sett, 6)) steerConfig.SteerButton = 1;
@@ -743,7 +743,7 @@ void ReceiveUdp() {
 
         sett = autoSteerUdpData[8];  //setting1 - Danfoss valve etc
 
-        if (bitRead(sett, 0)) steerConfig.IsDanfoss = 1;
+        if (bitRead(sett, 0)) steerConfig.IsDanfoss = 0;
         else steerConfig.IsDanfoss = 0;
         if (bitRead(sett, 1)) steerConfig.PressureSensor = 1;
         else steerConfig.PressureSensor = 0;
