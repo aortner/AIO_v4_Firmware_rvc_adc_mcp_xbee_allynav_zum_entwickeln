@@ -38,7 +38,7 @@ int keyasensorSample = 0;
 
 
 
-const bool debugKeya = false;
+const bool debugKeya = true;
 
 void keyaSend(uint8_t data[]) {
   //TODO Use this optimisation function once we're happy things are moving the right way
@@ -229,8 +229,8 @@ void SteerKeya(int steerSpeed) {
     Serial.println("pwmDrive zero - disabling");
     return;  // don't need to go any further, if we're disabling, we're disabling
   }
-  if (debugKeya) Serial.print("told to steer, with " + String(steerSpeed) + " so....");
-  if (debugKeya) Serial.print("   I converted that to speed " + String(actualSpeed));
+  if (debugKeya) Serial.println("told to steer, with " + String(steerSpeed) + " so....");
+  if (debugKeya) Serial.println("   I converted that to speed " + String(actualSpeed));
 
 
   CAN_message_t KeyaBusSendData;

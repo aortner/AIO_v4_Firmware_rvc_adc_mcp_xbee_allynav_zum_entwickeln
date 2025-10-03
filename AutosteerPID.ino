@@ -16,6 +16,21 @@ else allyfaktor=1;
   
   int16_t newMax = 0;
 
+  // ✅ SCHUTZ 1: Prüfe LOW_HIGH_DEGREES vor Division
+    if (LOW_HIGH_DEGREES <= 0) {
+        // Fallback auf sicheren Standardwert
+        Serial.println("ERROR: LOW_HIGH_DEGREES invalid, using default 30°");
+        highLowPerDeg = (float)(steerSettings.highPWM - steerSettings.lowPWM) / 30.0;
+    } else {
+        highLowPerDeg = (float)(steerSettings.highPWM - steerSettings.lowPWM) / LOW_HIGH_DEGREES;
+    }
+
+    // ✅ SCHUTZ 2: Prüfe ob highLowPerDeg valide ist
+    if (isnan(highLowPerDeg) || isinf(highLowPerDeg)) {
+        Serial.println("ERROR: highLowPerDeg calculation failed");
+        highLowPerDeg = 0;
+    }
+
   if (errorAbs < LOW_HIGH_DEGREES) {
     newMax = (errorAbs * highLowPerDeg) + steerSettings.lowPWM;
 

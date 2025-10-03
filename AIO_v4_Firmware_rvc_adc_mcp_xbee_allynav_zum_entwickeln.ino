@@ -1,9 +1,10 @@
-bool gnsspassThrough = false;
+bool gnsspassThrough = true;
 bool useMCP23017 = true;  
-bool xbee = 0;
+
 bool isKeya = true;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
 
+#define CRC32_POLYNOMIAL 0xEDB88320L
 
 //HardwareSerial* SerialXbee = &Serial2;  //xbee modul
 
@@ -30,7 +31,7 @@ FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_256> Keya_Bus;
 /************************* User Settings *************************/
 // Serial Ports
 #define SerialAOG Serial               //AgIO USB conection
-#define SerialRTK Serial3              //RTK radio
+//#define SerialRTK Serial3              //RTK radio
 HardwareSerial* SerialGPS = &Serial7;  //Main postion receiver (GGA)
 HardwareSerial* SerialIMU = &Serial5;  //IMU BNO-085
 
@@ -140,6 +141,88 @@ float roll = 0;
 float pitch = 0;
 float yaw = 0;
 
+
+// ========== Am Anfang der Hauptdatei ==========
+
+#define GNSS_BUFFER_SIZE 1024  // ✅ Verdoppelt auf 1024 für Sicherheit
+char gnssPassThroughBuffer[GNSS_BUFFER_SIZE];
+uint16_t gnssBufferIndex = 0;
+bool gnssBufferOverflow = false;
+bool gnssLastCharWasCR = false;  // ✅ NEU: CR-Tracking
+elapsedMillis gnssBufferTimeout = 0;
+#define GNSS_BUFFER_TIMEOUT_MS 500  // ✅ Kürzer: 500ms
+
+uint32_t gnssPacketsSent = 0;
+uint32_t gnssOverflowCount = 0;
+uint32_t gnssTimeoutCount = 0;
+uint32_t gnssCROnly = 0;      // ✅ NEU: Zähler für CR-only Enden
+uint32_t gnssLFOnly = 0;      // ✅ NEU: Zähler für LF-only Enden
+uint32_t gnssCRLF = 0;        // ✅ NEU: Zähler für CRLF Enden
+
+inline void resetGnssBuffer() {
+  gnssBufferIndex = 0;
+  gnssBufferOverflow = false;
+  gnssLastCharWasCR = false;
+  gnssBufferTimeout = 0;
+}
+
+inline bool addToGnssBuffer(char c) {
+  if (gnssBufferIndex >= GNSS_BUFFER_SIZE - 2) {
+    gnssBufferOverflow = true;
+    return false;
+  }
+  gnssPassThroughBuffer[gnssBufferIndex++] = c;
+  return true;
+}
+
+
+// Minimale Debug-Ausgabe für Production
+void sendGnssBuffer() {
+  if (gnssBufferIndex > 0) {
+    gnssPassThroughBuffer[gnssBufferIndex] = '\0';
+    bool isDataValid = false;
+
+    // Überprüfe, um welchen Satz-Typ es sich handelt
+    if (strncmp(gnssPassThroughBuffer, "$KSXT", 5) == 0) {
+      // Es ist ein KSXT-Satz, verwende die neue CRC32-Prüfung
+      isDataValid = isKsxtCrc32Valid(gnssPassThroughBuffer);
+    } else {
+      // Andernfalls wird die Standard-NMEA-82-Prüfung verwendet
+      isDataValid = isNmeaChecksumValid(gnssPassThroughBuffer); // Die Funktion aus der vorigen Antwort
+    }
+
+    // Sende die Daten nur, wenn sie gültig sind
+    if (isDataValid) {
+      Eth_udpPAOGI.beginPacket(Eth_ipDestination, 9999);
+      Eth_udpPAOGI.write((uint8_t*)gnssPassThroughBuffer, gnssBufferIndex);
+      Eth_udpPAOGI.endPacket();
+      gnssPacketsSent++;
+    } else {
+      // Gib eine Warnung für ungültige Daten aus
+      Serial.print("WARNUNG: Ungültige Prüfsumme! Verworfen: ");
+      Serial.println(gnssPassThroughBuffer);
+    }
+
+    // Reduzierte Statistik nur alle 1000 Pakete
+    if (gnssPacketsSent % 1000 == 0) {
+      Serial.print("GNSS: ");
+      Serial.print(gnssPacketsSent);
+      Serial.println(" pkts OK");
+      
+      // Nur bei Problemen ausgeben
+      if (gnssOverflowCount > 0 || gnssTimeoutCount > 0) {
+        Serial.print("  ⚠️ Ovf:");
+        Serial.print(gnssOverflowCount);
+        Serial.print(", TO:");
+        Serial.println(gnssTimeoutCount);
+      }
+    }
+    
+    resetGnssBuffer();
+  }
+}
+
+
 // Setup procedure ------------------------
 void setup() {
   delay(500);                //Small delay so serial can monitor start up
@@ -169,8 +252,8 @@ void setup() {
 
   SerialGPS->begin(baudGPS);
 
-  delay(10);
-  SerialRTK.begin(baudRTK);
+  //delay(10);
+  //SerialRTK.begin(baudRTK);
 
 
 
@@ -286,34 +369,152 @@ void loop() {
  if (isKeya) {
   KeyaBus_Receive();
  }
-  // Read incoming nmea from GPS
-  if (SerialGPS->available()) {
 
+   // Read incoming nmea from GPS - ALLE verfügbaren Zeichen verarbeiten
+  while (SerialGPS->available()) {
+    char c = SerialGPS->read();
+    
     if (gnsspassThrough) {
-      char c = SerialGPS->read();
-      nmeainput += c;
-      if (c == '\n') {
-
-        Eth_udpPAOGI.beginPacket(Eth_ipDestination, 9999);
-        Eth_udpPAOGI.print(nmeainput);
-        Eth_udpPAOGI.endPacket();
-        nmeainput = "";
-      }
-
-    } else {
-      char c = SerialGPS->read();
-      parser << c;
-
+      gnssBufferTimeout = 0;
       
+      // ✅ Erkenne verschiedene Zeilenenden
+      bool isLineEnd = false;
+      
+      if (c == '\n') {
+        // LF erkannt
+        if (gnssLastCharWasCR) {
+          // CRLF-Sequenz
+          gnssCRLF++;
+        } else {
+          // Nur LF
+          gnssLFOnly++;
+        }
+        isLineEnd = true;
+        gnssLastCharWasCR = false;
+      } 
+      else if (c == '\r') {
+        // CR erkannt - könnte CR-only oder CRLF sein
+        // Füge zum Buffer hinzu und markiere
+        gnssLastCharWasCR = true;
+        
+        // Füge CR zum Buffer hinzu
+        if (!addToGnssBuffer(c)) {
+          Serial.print("Overflow at CR, index: ");
+          Serial.println(gnssBufferIndex);
+          gnssOverflowCount++;
+          
+          // Zeige Buffer-Anfang
+          Serial.print("Buffer start: ");
+          for (int i = 0; i < min(60, (int)gnssBufferIndex); i++) {
+            Serial.print(gnssPassThroughBuffer[i]);
+          }
+          Serial.println();
+          
+          resetGnssBuffer();
+        }
+        continue;  // Warte auf nächstes Zeichen
+      }
+      else if (gnssLastCharWasCR) {
+        // Vorheriges Zeichen war CR, aber aktuelles ist kein LF
+        // => CR-only Zeilenende
+        gnssCROnly++;
+        isLineEnd = true;
+        gnssLastCharWasCR = false;
+        
+        // Aktuelles Zeichen NICHT vergessen - gehört zur nächsten Zeile
+        // Also erst senden, dann Zeichen verarbeiten
+        sendGnssBuffer();
+        
+        // Jetzt aktuelles Zeichen zur neuen Zeile hinzufügen
+        if (!addToGnssBuffer(c)) {
+          gnssOverflowCount++;
+          resetGnssBuffer();
+        }
+        continue;
+      }
+      else {
+        // Normales Zeichen
+        gnssLastCharWasCR = false;
+      }
+      
+      // Zeichen zum Buffer hinzufügen
+      if (!isLineEnd) {
+        if (!addToGnssBuffer(c)) {
+          Serial.print("GNSS overflow at index: ");
+          Serial.print(gnssBufferIndex);
+          Serial.print(", char: 0x");
+          Serial.println(c, HEX);
+          
+          Serial.print("Last 80 chars: ");
+          uint16_t start = (gnssBufferIndex > 80) ? gnssBufferIndex - 80 : 0;
+          for (uint16_t i = start; i < gnssBufferIndex; i++) {
+            char ch = gnssPassThroughBuffer[i];
+            if (ch >= 32 && ch < 127) Serial.print(ch);
+            else Serial.print('.');
+          }
+          Serial.println();
+          
+          gnssOverflowCount++;
+          
+          // Verwerfe bis zum nächsten Zeilenende
+          while (SerialGPS->available()) {
+            char discard = SerialGPS->read();
+            if (discard == '\n' || discard == '\r') break;
+          }
+          resetGnssBuffer();
+        }
+      } else {
+        // Zeilenende erkannt - sende Buffer
+        sendGnssBuffer();
+      }
+      
+    } else {
+      // Normaler Parsing-Modus
+      parser << c;
     }
   }
   
+  // Timeout-Prüfung
+  if (gnsspassThrough && gnssBufferIndex > 0 && gnssBufferTimeout > GNSS_BUFFER_TIMEOUT_MS) {
+    Serial.print("GNSS timeout (");
+    Serial.print(gnssBufferIndex);
+    Serial.print(" bytes): ");
+    
+    // Zeige ersten Teil des Buffers
+    for (int i = 0; i < min(80, (int)gnssBufferIndex); i++) {
+      char ch = gnssPassThroughBuffer[i];
+      if (ch >= 32 && ch < 127) Serial.print(ch);
+      else {
+        Serial.print("[0x");
+        Serial.print(ch, HEX);
+        Serial.print("]");
+      }
+    }
+    Serial.println();
+    
+    gnssTimeoutCount++;
+    sendGnssBuffer();
+  }
+  // ✅ Timeout-Prüfung: Wenn länger als 1 Sekunde keine neue Nachricht
+  if (gnsspassThrough && gnssBufferIndex > 0 && gnssBufferTimeout > GNSS_BUFFER_TIMEOUT_MS) {
+    Serial.print("GNSS timeout - sending incomplete buffer (");
+    Serial.print(gnssBufferIndex);
+    Serial.println(" bytes)");
+    
+    // Zeige Buffer-Inhalt für Debug
+    Serial.print("Buffer: ");
+    gnssPassThroughBuffer[gnssBufferIndex] = '\0';
+    Serial.println(gnssPassThroughBuffer);
+    
+    gnssTimeoutCount++;
+    sendGnssBuffer();  // Sende trotzdem, was wir haben
+  }
 
 
   // Check for RTK via Radio
-  if (SerialRTK.available()) {
-    SerialGPS->write(SerialRTK.read());
-  }
+  //if (SerialRTK.available()) {
+ //   SerialGPS->write(SerialRTK.read());
+ // }
 
   // Check for RTK via UDP
   unsigned int packetLength = Eth_udpNtrip.parsePacket();
@@ -394,4 +595,95 @@ bool calcChecksum() {
   }
 
   return (CK_A == ackPacket[70] && CK_B == ackPacket[71]);
+}
+
+
+
+
+// Ihre Original-Funktion zur CRC-Berechnung für ein einzelnes Byte
+unsigned long CalcCRC32Value(int value) {
+  unsigned long ulCRC = value;
+  for (int i = 8; i > 0; --i) {
+    if (ulCRC & 1)
+      ulCRC = (ulCRC >> 1) ^ CRC32_POLYNOMIAL;
+    else
+      ulCRC >>= 1;
+  }
+  return ulCRC;
+}
+
+// Ihre Original-Funktion zur CRC-Berechnung für einen Datenblock
+unsigned long CalcBlockCRC32(unsigned long ulCount, unsigned char* ucBuff) {
+  unsigned long ulCRC = 0;
+  while (ulCount-- != 0) {
+    unsigned long ulTmp1 = (ulCRC >> 8) & 0x00FFFFFFL;
+    unsigned long ulTmp2 = CalcCRC32Value(((int)ulCRC ^ *ucBuff++) & 0xFF);
+    ulCRC = ulTmp1 ^ ulTmp2;
+  }
+  return ulCRC;
+}
+
+/**
+ * Überprüft die CRC32-Prüfsumme eines proprietären $KSXT-Satzes.
+ * @param sentence Der zu überprüfende Datensatz (z.B. "$KSXT,...*7B2DC8F2")
+ * @return true, wenn die Prüfsumme korrekt ist, ansonsten false.
+ */
+bool isKsxtCrc32Valid(const char* sentence) {
+  // Finde das Sternchen '*' am Ende des Datenteils
+  const char* star = strrchr(sentence, '*');
+  if (star == nullptr || strlen(star) < 9) {
+    // Kein Sternchen oder zu kurze Prüfsumme
+    return false;
+  }
+
+  // Extrahiere die 8-stellige CRC32-Prüfsumme aus dem Satz (z.B. "7B2DC8F2")
+  // und konvertiere sie von Hexadezimal in eine Zahl.
+  unsigned long receivedCrc = strtoul(star + 1, nullptr, 16);
+
+  // Finde den Anfang des Datenteils (nach dem '$')
+  const char* dataStart = sentence;
+  if (*dataStart == '$') {
+    dataStart++;
+  }
+
+  // Berechne die Länge der Daten, für die die CRC berechnet werden muss
+  unsigned long dataLength = star - dataStart;
+
+  // Berechne die CRC32 für den relevanten Datenteil
+  unsigned long calculatedCrc = CalcBlockCRC32(dataLength, (unsigned char*)dataStart);
+
+  // Vergleiche die berechnete mit der empfangenen Prüfsumme
+  return receivedCrc == calculatedCrc;
+}
+
+
+
+bool isNmeaChecksumValid(const char* sentence) {
+  // Finde das Sternchen '*' am Ende des Satzes
+  const char* star = strrchr(sentence, '*');
+  if (star == nullptr) {
+    // Kein Sternchen gefunden, also keine Prüfsumme vorhanden
+    return false;
+  }
+
+  // Extrahiere die zweistellige Prüfsumme aus dem Satz (z.B. "47")
+  // und konvertiere sie von Hexadezimal in eine Zahl.
+  uint8_t receivedChecksum = (uint8_t)strtol(star + 1, nullptr, 16);
+
+  // Berechne die Prüfsumme aus den ankommenden Daten
+  uint8_t calculatedChecksum = 0;
+  // Starte die Berechnung nach dem '$' (falls vorhanden)
+  const char* startChar = sentence;
+  if (*startChar == '$') {
+    startChar++;
+  }
+  
+  // XOR-Verknüpfung aller Zeichen zwischen '$' und '*'
+  while (startChar < star) {
+    calculatedChecksum ^= *startChar;
+    startChar++;
+  }
+
+  // Vergleiche die berechnete mit der empfangenen Prüfsumme
+  return receivedChecksum == calculatedChecksum;
 }
