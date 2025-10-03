@@ -1,7 +1,7 @@
 bool gnsspassThrough = true;
 bool useMCP23017 = true;  
 
-bool isKeya = true;
+bool isKeya = false;
 #define isallnavy  1 // 0 for keya // 1 for allnav motor
 
 #define CRC32_POLYNOMIAL 0xEDB88320L

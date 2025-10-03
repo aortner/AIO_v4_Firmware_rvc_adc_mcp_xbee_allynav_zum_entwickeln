@@ -97,6 +97,7 @@ int16_t EEread = 0;
 //Relays
 bool isRelayActiveHigh = true;
 uint8_t relay = 0, relayHi = 0, uTurn = 0;
+uint8_t previousRelay = 0, previousRelayHi = 0; // <-- NEUE ZEILEN
 uint8_t tram = 0;
 
 //Switches
@@ -395,10 +396,7 @@ void autosteerLoop() {
     
 
 
-    if (useMCP23017) {
-
-      SetRelays();  //turn on off section relays
-    }
+   
 
 
 
@@ -562,6 +560,21 @@ void ReceiveUdp() {
 
         //Bit 12
         relayHi = autoSteerUdpData[12];
+
+// ##################### ANPASSUNG START #####################
+      // Prüfen, ob sich der Relais-Zustand geändert hat
+      if (relay != previousRelay || relayHi != previousRelayHi)
+      {
+        if (useMCP23017)
+        {
+          SetRelays(); // Relais nur bei einer Änderung schalten
+        }
+        
+        // Den neuen Zustand als den "vorherigen" für den nächsten Durchlauf speichern
+        previousRelay = relay;
+        previousRelayHi = relayHi;
+      }
+      // ###################### ANPASSUNG ENDE ######################
 
         //----------------------------------------------------------------------------
         //Serial Send to agopenGPS
