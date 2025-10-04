@@ -340,7 +340,7 @@ void autosteerLoop() {
     // Pressure sensor?
     if (steerConfig.PressureSensor) {
       sensorSample = (float)analogRead(PRESSURE_SENSOR_PIN);
-      sensorSample *= 0.25;
+      sensorSample *= 0.20;
       sensorReading = sensorReading * 0.6 + sensorSample * 0.4;
       if (sensorReading >= steerConfig.PulseCountMax) {
         steerSwitch = 1;
@@ -361,9 +361,9 @@ void autosteerLoop() {
         }
       } else {
 
-        sensorSample = (float)analogRead(CURRENT_SENSOR_PIN) / 4;
-
-        sensorReading = sensorReading * 0.7 + sensorSample * 0.3;
+        sensorSample = (float)analogRead(CURRENT_SENSOR_PIN) ;
+        sensorSample *= 0.20;
+        sensorReading = sensorReading * 0.8 + sensorSample * 0.2;
 
 
         if (sensorReading >= steerConfig.PulseCountMax) {
