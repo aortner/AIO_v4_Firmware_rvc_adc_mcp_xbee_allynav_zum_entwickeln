@@ -742,7 +742,7 @@ void ReceiveUdp() {
         //autoSteerUdpData[7];
 
         sett = autoSteerUdpData[8];  //setting1 - Danfoss valve etc
-
+//always off
         if (bitRead(sett, 0)) steerConfig.IsDanfoss = 0;
         else steerConfig.IsDanfoss = 0;
         if (bitRead(sett, 1)) steerConfig.PressureSensor = 1;
