@@ -23,8 +23,8 @@ extern float steerAngleSetPoint;
 extern float steerAngleError;
 extern struct Storage steerSettings;
 
-
-extern struct SystemConfig sysconfig;
+// Deklarieren, dass sysConfig und die zugehörigen Flags woanders definiert sind
+extern struct SystemConfig sysConfig;
 extern bool gnsspassThrough;
 extern bool useMCP23017;
 extern bool isKeya;
@@ -59,10 +59,29 @@ void handleSetConfig(String req) {
     sysConfig.gnsspassThrough = (req.indexOf("gnsspass=1") != -1) ? 1 : 0;
   } else if (req.indexOf("mcp=") != -1) {
     sysConfig.useMCP23017 = (req.indexOf("mcp=1") != -1) ? 1 : 0;
-  } else if (req.indexOf("keya=") != -1) {
-    sysConfig.isKeya = (req.indexOf("keya=1") != -1) ? 1 : 0;
-  } else if (req.indexOf("allynav=") != -1) {
-    sysConfig.isallnavy = (req.indexOf("allynav=1") != -1) ? 1 : 0;
+  } else if (req.indexOf("motor=") != -1) {
+    // Finde den Wert für den motor Parameter
+    int motorVal = -1;
+    int motorIdx = req.indexOf("motor=");
+    if (motorIdx != -1) {
+        motorVal = req.substring(motorIdx + 6).toInt();
+    }
+    
+    // Setze die beiden Flags basierend auf der Auswahl
+    switch(motorVal) {
+        case 0: // PWM
+            sysConfig.isKeya = 0;
+            sysConfig.isallnavy = 0; // Spielt keine Rolle, aber zur Sicherheit auf 0
+            break;
+        case 1: // Keya
+            sysConfig.isKeya = 1;
+            sysConfig.isallnavy = 0;
+            break;
+        case 2: // AllyNav
+            sysConfig.isKeya = 1;
+            sysConfig.isallnavy = 1;
+            break;
+    }
   }
   
   // Sende eine einfache Antwort, bevor der Reset erfolgt
@@ -82,29 +101,32 @@ void webserverSetup() {
 // Separate HTML-Seite die JSON lädt (für Browser)
 void sendWebPageFast(EthernetClient &client) {
   client.print("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n");
-  client.print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>AIO v4 Control</title>");
+  client.print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>AIO AgOpenGps Autosteer Controller</title>");
   client.print("<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f2f5;color:#333}h1,h2{color:#1a2a45;text-align:center}");
   client.print(".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:25px}");
   client.print(".card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);border-left:5px solid #ccc}");
   client.print(".label{color:#666;font-size:14px;margin-bottom:5px}.value{font-size:22px;font-weight:bold;color:#1a2a45}");
+  client.print(".btn-group button{width:33.3%;padding:10px 0;border:1px solid #ccc;background-color:#f0f0f0;cursor:pointer;float:left}");
+  client.print(".btn-group button.active{background-color:#4CAF50;color:white;border-color:#4CAF50}");
   client.print(".toggle-btn{display:block;width:100%;padding:12px;font-size:16px;font-weight:bold;border:none;border-radius:5px;cursor:pointer;transition:background-color 0.3s}");
   client.print(".toggle-btn.on{background-color:#4CAF50;color:white}.toggle-btn.off{background-color:#757575;color:white}");
   client.print("#restarting{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);color:white;font-size:2em;text-align:center;padding-top:40vh}");
   client.print(".status-ok{border-left-color:#4CAF50}.status-warn{border-left-color:#FFC107}.status-error{border-left-color:#F44336}</style></head><body>");
-  client.print("<h1>AIO v4 Real-Time Status</h1><div id='data-grid' class='grid'></div>");
+  client.print("<h1>www.autosteer.cc AgOpenGps AIO Real-Time Status</h1><div id='data-grid' class='grid'></div>");
   client.print("<h2>System Configuration</h2><div id='settings-grid' class='grid'></div><div id='restarting'>Restarting... Please wait.</div>");
   client.print("<script>function r(v){return parseFloat(v).toFixed(2)}function i(v){return parseInt(v)}");
   client.print("function createCard(l,v,c=''){return`<div class='card ${c}'><div class=label>${l}</div><div class=value>${v}</div></div>`}");
-  client.print("function createBtn(l,id,s){return`<div class=card><div class=label>${l}</div><button id='${id}' onclick='toggle(\"${id}\",${!s})' class='toggle-btn ${s?'on':'off'}'>${s?'ON':'OFF'}</button></div>`}");
-  client.print("function toggle(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v?1:0}`)}");
+  client.print("function createToggleBtn(l,p,s){return`<div class=card><div class=label>${l}</div><button onclick='setParam(\"${p}\",${!s})' class='toggle-btn ${s?'on':'off'}'>${s?'ON':'OFF'}</button></div>`}");
+  client.print("function createMotorSelector(m){let b='';const types=['PWM','Keya','AllyNav'];for(let i=0;i<3;i++){b+=`<button onclick='setParam(\"motor\",${i})' class='${m==i?\"active\":''}'>${types[i]}</button>`}return`<div class=card><div class=label>Motor Controller</div><div class='btn-group'>${b}</div></div>`}");
+  client.print("function setParam(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v}`)}");
   client.print("function load(){fetch('/json').then(r=>r.json()).then(d=>{let h='';let s='';");
   // Status Cards
   client.print("h+=createCard('Uptime',i(d.up)+' s','status-ok');h+=createCard('GPS Fix',i(d.fix),'status-'+(i(d.fix)>=4?'ok':'warn'));h+=createCard('Satellites',i(d.sats),'status-'+(i(d.sats)>8?'ok':'warn'));h+=createCard('Speed',r(d.speed)+' km/h');");
   client.print("if(d.roll!=null){h+=createCard('IMU Heading',r(d.heading/10)+' &deg;');h+=createCard('IMU Roll',r(d.roll/10)+' &deg;');}");
   client.print("if(d.steer!=null){h+=createCard('Steering',d.steer==1?'ACTIVE':'OFF','status-'+(d.steer==1?'ok':'warn'));h+=createCard('Set Angle',r(d.setAngle)+' &deg;');h+=createCard('Angle Error',r(d.angleErr)+' &deg;');h+=createCard('PWM',i(d.pwm));}");
   client.print("h+=createCard('IMU Status',d.imuOk?'OK':'OFF','status-'+(d.imuOk?'ok':'error'));h+=createCard('WAS Status',d.wasOk?'OK':'ERROR','status-'+(d.wasOk?'ok':'error'));");
-  // Setting Buttons
-  client.print("s+=createBtn('GNSS Passthrough','gnsspass',d.gnsspass);s+=createBtn('Use MCP23017','mcp',d.mcp);s+=createBtn('Use Keya Motor','keya',d.keya);s+=createBtn('Motor is AllyNav','allynav',d.allynav);");
+  // Setting Controls
+  client.print("s+=createToggleBtn('GNSS Passthrough','gnsspass',d.gnsspass);s+=createToggleBtn('Use MCP23017','mcp',d.mcp);s+=createMotorSelector(d.motor_type);");
   client.print("document.getElementById('data-grid').innerHTML=h;document.getElementById('settings-grid').innerHTML=s;");
   client.print("}).catch(e=>{console.log(e);})}load();setInterval(load,2000)</script></body></html>");
 }
@@ -140,8 +162,16 @@ void sendJsonDataFast(EthernetClient &client) {
   client.print(",\"wasOk\":"); client.print(adsOk);
   client.print(",\"gnsspass\":"); client.print(gnsspassThrough);
   client.print(",\"mcp\":"); client.print(useMCP23017);
-  client.print(",\"keya\":"); client.print(isKeya);
-  client.print(",\"allynav\":"); client.print(isallnavy);
+  
+  // Motor Type Logik für JSON
+  int motorType = 0; // Default auf PWM
+  if (isKeya && isallnavy) {
+      motorType = 2; // AllyNav
+  } else if (isKeya) {
+      motorType = 1; // Keya
+  }
+  client.print(",\"motor_type\":"); client.print(motorType);
+
 
   client.println("}");
 }
