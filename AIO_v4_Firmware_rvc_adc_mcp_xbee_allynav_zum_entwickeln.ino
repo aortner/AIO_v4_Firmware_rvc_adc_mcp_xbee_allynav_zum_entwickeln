@@ -375,12 +375,14 @@ delay(100);
   }
 
 
-  setupWebServer();
+  webserverSetup();
 }
 
 void loop() {
 
-handleWebServer();
+
+  webserverLoop();
+
 
 
 

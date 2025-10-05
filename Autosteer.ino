@@ -267,6 +267,18 @@ void autosteerSetup() {
   isKeya = (sysConfig.isKeya != 0);
    isallnavy = (sysConfig.isallnavy != 0);
 
+    Serial.println("\r\n=== Current System Config ===");
+  Serial.print("GNSS Pass-Through: ");
+  Serial.println(gnsspassThrough);
+  Serial.print("MCP23017: ");
+  Serial.println(useMCP23017);
+  Serial.print("Keya Motor: ");
+  Serial.println(isKeya);
+  Serial.print("Motor Type: ");
+  Serial.println(isallnavy ? "Allynav" : "Keya");
+  Serial.println("=============================\r\n");
+  
+
   if (Autosteer_running) {
     Serial.println("Autosteer running, waiting for AgOpenGPS");
     // Autosteer Led goes Red if ADS1115 is found
