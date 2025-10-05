@@ -5,14 +5,8 @@
 #define lowByte(w) ((uint8_t)((w)&0xFF))
 #define highByte(w) ((uint8_t)((w) >> 8))
 
-#if isallnavy == 1
+
 uint64_t KeyaPGN = 0x06c73001;
-#else
-uint64_t KeyaPGN = 0x06000001;
-#endif
-
-
-
 
 //Enable	0x23 0x0D 0x20 0x01 0x00 0x00 0x00 0x00
 //Disable	0x23 0x0C 0x20 0x01 0x00 0x00 0x00 0x00
@@ -57,6 +51,14 @@ void keyaSend(uint8_t data[]) {
 */
 
 void CAN_Setup() {
+
+if (isallnavy)
+{
+ KeyaPGN = 0x06c73001;
+}
+
+else KeyaPGN = 0x06000001;
+
   Keya_Bus.begin();
 
   if (isallnavy) {

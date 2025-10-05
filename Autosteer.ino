@@ -168,6 +168,22 @@ struct Setup {
 };
 Setup steerConfig;  // 9 bytes
 
+
+struct SystemConfig {
+  uint8_t gnsspassThrough = 0;  // 0 = false, 1 = true
+  uint8_t useMCP23017 = 1;      // 0 = false, 1 = true
+  uint8_t isKeya = 0;           // 0 = false, 1 = true
+  uint8_t isallnavy = 1;        // 0 = Keya, 1 = Allynav
+  uint8_t reserved1 = 0;        // Für zukünftige Erweiterungen
+  uint8_t reserved2 = 0;
+  uint8_t reserved3 = 0;
+  uint8_t reserved4 = 0;
+};  // 8 bytes total
+
+SystemConfig sysConfig;
+
+
+
 void steerConfigInit() {
   if (!isKeya) {
     if (steerConfig.CytronDriver) {
@@ -232,14 +248,24 @@ void autosteerSetup() {
     EEPROM.put(10, steerSettings);
     EEPROM.put(40, steerConfig);
     EEPROM.put(60, networkAddress);
+     EEPROM.put(100, sysConfig);  // NEU: System Config
   } else {
     EEPROM.get(10, steerSettings);  // read the Settings
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress);
+        EEPROM.get(100, sysConfig);  // NEU: System Config laden
+
   }
 
   steerSettingsInit();
   steerConfigInit();
+  
+
+  // Boolean-Variablen aus EEPROM setzen
+  gnsspassThrough = (sysConfig.gnsspassThrough != 0);
+  useMCP23017 = (sysConfig.useMCP23017 != 0);
+  isKeya = (sysConfig.isKeya != 0);
+   isallnavy = (sysConfig.isallnavy != 0);
 
   if (Autosteer_running) {
     Serial.println("Autosteer running, waiting for AgOpenGPS");

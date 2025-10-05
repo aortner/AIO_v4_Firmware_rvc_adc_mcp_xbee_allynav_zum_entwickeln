@@ -1,13 +1,12 @@
-bool gnsspassThrough = false;
-bool useMCP23017 = true;  
+bool gnsspassThrough = false;  
+bool useMCP23017 = true;       
+bool isKeya = false;           
+bool isallnavy = true;   
+
+#define CRC32_POLYNOMIAL 0xEDB88320L
 
 elapsedMillis imuDataTimer; // Timer zur Überwachung der IMU-Daten
 const uint16_t IMU_TIMEOUT_MS = 1000; // 1 Sekunde Timeout
-
-bool isKeya = false;
-#define isallnavy  1 // 0 for keya // 1 for allnav motor
-
-#define CRC32_POLYNOMIAL 0xEDB88320L
 
 //HardwareSerial* SerialXbee = &Serial2;  //xbee modul
 
@@ -374,11 +373,14 @@ delay(100);
     Serial.println("Right... time for some CANBUS! And, we're dedicated to SteeringwheelMotor here");
     CAN_Setup();
   }
+
+
+  setupWebServer();
 }
 
 void loop() {
 
-
+handleWebServer();
 
 
 
