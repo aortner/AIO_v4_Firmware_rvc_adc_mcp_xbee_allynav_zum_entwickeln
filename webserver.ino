@@ -1,16 +1,15 @@
 // ========== NEUE DATEI: zWebserver.ino ==========
 
 #include <NativeEthernet.h>
+#include <EEPROM.h>
 
 // Externe Variablen aus anderen Dateien
 extern char imuHeading[6];
 extern char imuRoll[6];
 extern char imuPitch[6];
-extern char imuYawRate[6];
 extern char fixQuality[2];
 extern char numSats[4];
 extern char HDOP[5];
-extern char altitude[12];
 extern char ageDGPS[10];
 extern float gpsSpeed;
 extern bool Autosteer_running;
@@ -18,6 +17,18 @@ extern uint8_t watchdogTimer;
 extern const uint16_t WATCHDOG_THRESHOLD;
 extern float steerAngleActual;
 extern int16_t pwmDisplay;
+extern bool useBNO08xRVC;
+extern bool adsOk;
+extern float steerAngleSetPoint;
+extern float steerAngleError;
+extern struct Storage steerSettings;
+
+
+extern struct SystemConfig sysconfig;
+extern bool gnsspassThrough;
+extern bool useMCP23017;
+extern bool isKeya;
+extern bool isallnavy;
 
 
 // Webserver auf Port 80
@@ -34,7 +45,32 @@ WebserverState webState = WS_IDLE;
 EthernetClient webClient;
 unsigned long webStateTimer = 0;
 String webRequest = "";
-int webSendPosition = 0;
+
+// Funktion zum Speichern der Einstellungen und Neustarten
+void saveAndReset() {
+  EEPROM.put(100, sysConfig);
+  delay(100); // Kurze Pause, um sicherzustellen, dass der Schreibvorgang abgeschlossen ist
+  SCB_AIRCR = 0x05FA0004; // Teensy Reset
+}
+
+// Funktion zur Verarbeitung von Einstellungsänderungen
+void handleSetConfig(String req) {
+  if (req.indexOf("gnsspass=") != -1) {
+    sysConfig.gnsspassThrough = (req.indexOf("gnsspass=1") != -1) ? 1 : 0;
+  } else if (req.indexOf("mcp=") != -1) {
+    sysConfig.useMCP23017 = (req.indexOf("mcp=1") != -1) ? 1 : 0;
+  } else if (req.indexOf("keya=") != -1) {
+    sysConfig.isKeya = (req.indexOf("keya=1") != -1) ? 1 : 0;
+  } else if (req.indexOf("allynav=") != -1) {
+    sysConfig.isallnavy = (req.indexOf("allynav=1") != -1) ? 1 : 0;
+  }
+  
+  // Sende eine einfache Antwort, bevor der Reset erfolgt
+  webClient.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nOK");
+  
+  saveAndReset();
+}
+
 
 void webserverSetup() {
   webServer.begin();
@@ -46,122 +82,115 @@ void webserverSetup() {
 // Separate HTML-Seite die JSON lädt (für Browser)
 void sendWebPageFast(EthernetClient &client) {
   client.print("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n");
-  client.print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>AIO v4</title>");
-  client.print("<style>body{font-family:Arial;margin:20px;background:#f0f0f0}");
-  client.print(".card{background:white;padding:15px;margin:10px 0;border-radius:5px;border-left:4px solid #4CAF50}");
-  client.print(".label{color:#666;font-size:13px}.value{font-size:20px;color:#333;margin-top:5px}</style></head><body>");
-  client.print("<h1>AIO v4 Status</h1><div id='data'>Loading...</div>");
-  client.print("<script>function load(){fetch('/json').then(r=>r.json()).then(d=>{");
-  client.print("document.getElementById('data').innerHTML=");
-  client.print("'<div class=card><div class=label>GPS Fix</div><div class=value>'+d.fix+'</div></div>'+");
-  client.print("'<div class=card><div class=label>Satellites</div><div class=value>'+d.sats+'</div></div>'+");
-  client.print("'<div class=card><div class=label>Speed</div><div class=value>'+d.speed+' km/h</div></div>'+");
-  client.print("(d.steer!=null?'<div class=card><div class=label>Steering</div><div class=value>'+(d.steer==1?'ACTIVE':'OFF')+'</div></div>':'')+");
-  client.print("(d.angle!=null?'<div class=card><div class=label>Angle</div><div class=value>'+d.angle+'&deg;</div></div>':'')+");
-  client.print("'<div class=card><div class=label>Uptime</div><div class=value>'+d.up+' s</div></div>'");
-  client.print("}).catch(e=>console.log(e))}load();setInterval(load,3000)</script></body></html>");
+  client.print("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>AIO v4 Control</title>");
+  client.print("<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f2f5;color:#333}h1,h2{color:#1a2a45;text-align:center}");
+  client.print(".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:25px}");
+  client.print(".card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);border-left:5px solid #ccc}");
+  client.print(".label{color:#666;font-size:14px;margin-bottom:5px}.value{font-size:22px;font-weight:bold;color:#1a2a45}");
+  client.print(".toggle-btn{display:block;width:100%;padding:12px;font-size:16px;font-weight:bold;border:none;border-radius:5px;cursor:pointer;transition:background-color 0.3s}");
+  client.print(".toggle-btn.on{background-color:#4CAF50;color:white}.toggle-btn.off{background-color:#757575;color:white}");
+  client.print("#restarting{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);color:white;font-size:2em;text-align:center;padding-top:40vh}");
+  client.print(".status-ok{border-left-color:#4CAF50}.status-warn{border-left-color:#FFC107}.status-error{border-left-color:#F44336}</style></head><body>");
+  client.print("<h1>AIO v4 Real-Time Status</h1><div id='data-grid' class='grid'></div>");
+  client.print("<h2>System Configuration</h2><div id='settings-grid' class='grid'></div><div id='restarting'>Restarting... Please wait.</div>");
+  client.print("<script>function r(v){return parseFloat(v).toFixed(2)}function i(v){return parseInt(v)}");
+  client.print("function createCard(l,v,c=''){return`<div class='card ${c}'><div class=label>${l}</div><div class=value>${v}</div></div>`}");
+  client.print("function createBtn(l,id,s){return`<div class=card><div class=label>${l}</div><button id='${id}' onclick='toggle(\"${id}\",${!s})' class='toggle-btn ${s?'on':'off'}'>${s?'ON':'OFF'}</button></div>`}");
+  client.print("function toggle(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v?1:0}`)}");
+  client.print("function load(){fetch('/json').then(r=>r.json()).then(d=>{let h='';let s='';");
+  // Status Cards
+  client.print("h+=createCard('Uptime',i(d.up)+' s','status-ok');h+=createCard('GPS Fix',i(d.fix),'status-'+(i(d.fix)>=4?'ok':'warn'));h+=createCard('Satellites',i(d.sats),'status-'+(i(d.sats)>8?'ok':'warn'));h+=createCard('Speed',r(d.speed)+' km/h');");
+  client.print("if(d.roll!=null){h+=createCard('IMU Heading',r(d.heading/10)+' &deg;');h+=createCard('IMU Roll',r(d.roll/10)+' &deg;');}");
+  client.print("if(d.steer!=null){h+=createCard('Steering',d.steer==1?'ACTIVE':'OFF','status-'+(d.steer==1?'ok':'warn'));h+=createCard('Set Angle',r(d.setAngle)+' &deg;');h+=createCard('Angle Error',r(d.angleErr)+' &deg;');h+=createCard('PWM',i(d.pwm));}");
+  client.print("h+=createCard('IMU Status',d.imuOk?'OK':'OFF','status-'+(d.imuOk?'ok':'error'));h+=createCard('WAS Status',d.wasOk?'OK':'ERROR','status-'+(d.wasOk?'ok':'error'));");
+  // Setting Buttons
+  client.print("s+=createBtn('GNSS Passthrough','gnsspass',d.gnsspass);s+=createBtn('Use MCP23017','mcp',d.mcp);s+=createBtn('Use Keya Motor','keya',d.keya);s+=createBtn('Motor is AllyNav','allynav',d.allynav);");
+  client.print("document.getElementById('data-grid').innerHTML=h;document.getElementById('settings-grid').innerHTML=s;");
+  client.print("}).catch(e=>{console.log(e);})}load();setInterval(load,2000)</script></body></html>");
 }
 
 // Minimale JSON-Antwort (schnell!)
 void sendJsonDataFast(EthernetClient &client) {
   client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n{");
 
-  client.print("\"fix\":\"");
-  client.print(fixQuality);
-  client.print("\",\"sats\":\"");
-  client.print(numSats);
-  client.print("\",\"speed\":");
-  client.print(gpsSpeed, 1);
-
-  if (Autosteer_running) {
-    client.print(",\"steer\":");
-    client.print(watchdogTimer < WATCHDOG_THRESHOLD ? "1" : "0");
-    client.print(",\"angle\":");
-    client.print(steerAngleActual, 1);
-    client.print(",\"pwm\":");
-    client.print(pwmDisplay);
+  // System & GPS
+  client.print("\"up\":"); client.print(millis() / 1000);
+  client.print(",\"fix\":\""); client.print(fixQuality);
+  client.print("\",\"sats\":\""); client.print(numSats);
+  client.print("\",\"speed\":"); client.print(gpsSpeed, 2);
+  
+  // IMU
+  if (useBNO08xRVC){
+    client.print(",\"roll\":\""); client.print(imuRoll);
+    client.print("\",\"pitch\":\""); client.print(imuPitch);
+    client.print("\",\"heading\":\""); client.print(imuHeading);
+    client.print("\"");
   }
 
-  client.print(",\"up\":");
-  client.print(millis() / 1000);
+  // Autosteer
+  if (Autosteer_running) {
+    client.print(",\"steer\":"); client.print(watchdogTimer < WATCHDOG_THRESHOLD ? "1" : "0");
+    client.print(",\"setAngle\":"); client.print(steerAngleSetPoint, 2);
+    client.print(",\"angleErr\":"); client.print(steerAngleError, 2);
+    client.print(",\"pwm\":"); client.print(pwmDisplay);
+  }
+
+  // Status & Settings
+  client.print(",\"imuOk\":"); client.print(useBNO08xRVC);
+  client.print(",\"wasOk\":"); client.print(adsOk);
+  client.print(",\"gnsspass\":"); client.print(gnsspassThrough);
+  client.print(",\"mcp\":"); client.print(useMCP23017);
+  client.print(",\"keya\":"); client.print(isKeya);
+  client.print(",\"allynav\":"); client.print(isallnavy);
 
   client.println("}");
 }
 
 
-// Non-blocking Webserver Loop - MAX 5ms pro Aufruf!
+// Non-blocking Webserver Loop
 void webserverLoop() {
   switch (webState) {
-
     case WS_IDLE: {
-      // Prüfe auf neuen Client (sehr schnell)
       EthernetClient newClient = webServer.available();
       if (newClient) {
         webClient = newClient;
         webState = WS_READING_REQUEST;
         webStateTimer = millis();
         webRequest = "";
-        webRequest.reserve(100);
-        //Serial.println("Web: New client");
+        webRequest.reserve(128);
       }
       break;
     }
-
     case WS_READING_REQUEST: {
-      // Timeout nach 200ms
       if (millis() - webStateTimer > 200) {
-        //Serial.println("Web: Request timeout");
         webClient.stop();
         webState = WS_IDLE;
         break;
       }
-
-      // Lese nur wenige Bytes pro Loop
-      int bytesRead = 0;
-      while (webClient.available() && bytesRead < 30) {
+      while (webClient.available()) {
         char c = webClient.read();
-        if (webRequest.length() < 100) {
-          webRequest += c;
-        }
-
-        // Ende der ersten Zeile?
         if (c == '\n') {
-          // Request komplett - starte Antwort
           webState = WS_SENDING_RESPONSE;
-          webSendPosition = 0;
-          //Serial.print("Web: Request ");
-          //Serial.println(webRequest);
           break;
         }
-        bytesRead++;
+        if (webRequest.length() < 128) webRequest += c;
       }
       break;
     }
-
     case WS_SENDING_RESPONSE: {
-       // Prüfen, ob der Request "/json" war, ansonsten die HTML-Seite senden
-      if (webSendPosition == 0) {
-        if (webRequest.indexOf("GET /json") >= 0) {
-          sendJsonDataFast(webClient);
-        } else {
-          sendWebPageFast(webClient);
-        }
-        webSendPosition = 1;
+      if (webRequest.indexOf("GET /set?") >= 0) {
+        handleSetConfig(webRequest);
+      } else if (webRequest.indexOf("GET /json") >= 0) {
+        sendJsonDataFast(webClient);
+      } else {
+        sendWebPageFast(webClient);
       }
-
-      // Sofort schließen
       webState = WS_CLOSING;
-      webStateTimer = millis();
       break;
     }
-
     case WS_CLOSING: {
-      // Warte kurz, dann schließen
-      if (millis() - webStateTimer > 10) {
-        webClient.stop();
-        webState = WS_IDLE;
-        //Serial.println("Web: Closed");
-      }
+      webClient.stop();
+      webState = WS_IDLE;
       break;
     }
   }
