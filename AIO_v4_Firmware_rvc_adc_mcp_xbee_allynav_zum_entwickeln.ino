@@ -1,3 +1,23 @@
+
+struct SystemConfig {
+  uint8_t gnsspassThrough = 0;  // 0 = false, 1 = true
+  uint8_t useMCP23017 = 1;      // 0 = false, 1 = true
+  uint8_t isKeya = 0;           // 0 = false, 1 = true
+  uint8_t isallnavy = 1;        // 0 = Keya, 1 = Allynav
+  uint8_t pcbRelay1_Mode = 1;
+  uint8_t pcbRelay2_Mode = 1;
+  uint8_t reserved1 = 0;        // Für zukünftige Erweiterungen
+  uint8_t reserved2 = 0;
+  };  // 8 bytes total
+
+SystemConfig sysConfig;
+
+extern uint8_t watchdogTimer;
+extern const uint16_t WATCHDOG_THRESHOLD;
+extern uint8_t tram;
+extern uint8_t relay;
+
+
 bool gnsspassThrough = false;  
 bool useMCP23017 = true;       
 bool isKeya = false;           
@@ -55,7 +75,8 @@ const int32_t baudRTK = 115200;  // most are using Xbee radios with default of 1
 #define PCB_RELAY_1 8  //pcb relay
 #define PCB_RELAY_2 9   // pcb relay
 
-
+bool previousRelay1_state = false;
+bool previousRelay2_state = false;
 
 
 /*****************************************************************/
@@ -581,6 +602,9 @@ void loop() {
   if (Autosteer_running) autosteerLoop();
   else ReceiveUdp();
 
+    updatePcbRelays();
+
+
   //GGA timeout, turn off GPS LED's etc
   if (GGAReadyTime > 10000)  //GGA age over 10sec
   {
@@ -707,4 +731,65 @@ bool isNmeaChecksumValid(const char* sentence) {
 
   // Vergleiche die berechnete mit der empfangenen Prüfsumme
   return receivedChecksum == calculatedChecksum;
+}
+// In AIO_v4_Firmware_... .ino
+
+void updatePcbRelays() {
+  bool relay1_state = false;
+  bool relay2_state = false;
+
+  // --- Logik für Relais 1 ---
+  switch (sysConfig.pcbRelay1_Mode) {
+    case 2: // Autosteer on/off
+      relay1_state = (watchdogTimer < WATCHDOG_THRESHOLD); //
+      break;
+    case 3: // Tram on/off
+      relay1_state = (tram != 0); //
+      break;
+    case 4: // Hitch Up
+      relay1_state = bitRead(relay, 4); //
+      break;
+    case 5: // Hitch Down
+      relay1_state = bitRead(relay, 5); //
+      break;
+    case 6: // Section 1
+      relay1_state = bitRead(relay, 0); //
+      break;
+    case 7: // Section 2
+      relay1_state = bitRead(relay, 1); //
+      break;
+    case 1: // None
+    default:
+      relay1_state = false;
+      break;
+  }
+
+  // --- Logik für Relais 2 ---
+  switch (sysConfig.pcbRelay2_Mode) {
+    case 2: // Autosteer on/off
+      relay2_state = (watchdogTimer < WATCHDOG_THRESHOLD); //
+      break;
+    case 3: // Tram on/off
+      relay2_state = (tram != 0); //
+      break;
+    // ... (andere cases für Relais 2, identisch zu oben) ...
+    case 7: // Section 2
+      relay2_state = bitRead(relay, 1); //
+      break;
+    case 1: // None
+    default:
+      relay2_state = false;
+      break;
+  }
+
+  // --- Physische Relais NUR BEI ÄNDERUNG schalten ---
+  if (relay1_state != previousRelay1_state) {
+    digitalWrite(PCB_RELAY_1, relay1_state); //
+    previousRelay1_state = relay1_state;
+  }
+
+  if (relay2_state != previousRelay2_state) {
+    digitalWrite(PCB_RELAY_2, relay2_state); //
+    previousRelay2_state = relay2_state;
+  }
 }

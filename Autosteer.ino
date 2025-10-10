@@ -169,18 +169,6 @@ struct Setup {
 Setup steerConfig;  // 9 bytes
 
 
-struct SystemConfig {
-  uint8_t gnsspassThrough = 0;  // 0 = false, 1 = true
-  uint8_t useMCP23017 = 1;      // 0 = false, 1 = true
-  uint8_t isKeya = 0;           // 0 = false, 1 = true
-  uint8_t isallnavy = 1;        // 0 = Keya, 1 = Allynav
-  uint8_t reserved1 = 0;        // Für zukünftige Erweiterungen
-  uint8_t reserved2 = 0;
-  uint8_t reserved3 = 0;
-  uint8_t reserved4 = 0;
-};  // 8 bytes total
-
-SystemConfig sysConfig;
 
 
 

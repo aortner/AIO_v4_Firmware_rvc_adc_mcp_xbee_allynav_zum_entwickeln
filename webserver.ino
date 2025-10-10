@@ -22,6 +22,8 @@ extern bool adsOk;
 extern float steerAngleSetPoint;
 extern float steerAngleError;
 extern struct Storage steerSettings;
+extern float sensorReading;
+extern struct Setup steerConfig;
 
 // Deklarieren, dass sysConfig und die zugehörigen Flags woanders definiert sind
 extern struct SystemConfig sysConfig;
@@ -60,33 +62,22 @@ void handleSetConfig(String req) {
   } else if (req.indexOf("mcp=") != -1) {
     sysConfig.useMCP23017 = (req.indexOf("mcp=1") != -1) ? 1 : 0;
   } else if (req.indexOf("motor=") != -1) {
-    // Finde den Wert für den motor Parameter
-    int motorVal = -1;
-    int motorIdx = req.indexOf("motor=");
-    if (motorIdx != -1) {
-        motorVal = req.substring(motorIdx + 6).toInt();
-    }
-    
-    // Setze die beiden Flags basierend auf der Auswahl
+    int motorVal = req.substring(req.indexOf("motor=") + 6).toInt();
     switch(motorVal) {
-        case 0: // PWM
-            sysConfig.isKeya = 0;
-            sysConfig.isallnavy = 0; // Spielt keine Rolle, aber zur Sicherheit auf 0
-            break;
-        case 1: // Keya
-            sysConfig.isKeya = 1;
-            sysConfig.isallnavy = 0;
-            break;
-        case 2: // AllyNav
-            sysConfig.isKeya = 1;
-            sysConfig.isallnavy = 1;
-            break;
+        case 0: sysConfig.isKeya = 0; sysConfig.isallnavy = 0; break;
+        case 1: sysConfig.isKeya = 1; sysConfig.isallnavy = 0; break;
+        case 2: sysConfig.isKeya = 1; sysConfig.isallnavy = 1; break;
     }
+  // ✅ NEU: Verarbeitung der Relais-Einstellungen
+  } else if (req.indexOf("relay1=") != -1) {
+    int val = req.substring(req.indexOf("relay1=") + 7).toInt();
+    if (val >= 1 && val <= 7) sysConfig.pcbRelay1_Mode = val;
+  } else if (req.indexOf("relay2=") != -1) {
+    int val = req.substring(req.indexOf("relay2=") + 7).toInt();
+    if (val >= 1 && val <= 7) sysConfig.pcbRelay2_Mode = val;
   }
   
-  // Sende eine einfache Antwort, bevor der Reset erfolgt
   webClient.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nOK");
-  
   saveAndReset();
 }
 
@@ -111,22 +102,29 @@ void sendWebPageFast(EthernetClient &client) {
   client.print(".toggle-btn{display:block;width:100%;padding:12px;font-size:16px;font-weight:bold;border:none;border-radius:5px;cursor:pointer;transition:background-color 0.3s}");
   client.print(".toggle-btn.on{background-color:#4CAF50;color:white}.toggle-btn.off{background-color:#757575;color:white}");
   client.print("#restarting{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);color:white;font-size:2em;text-align:center;padding-top:40vh}");
-  client.print(".status-ok{border-left-color:#4CAF50}.status-warn{border-left-color:#FFC107}.status-error{border-left-color:#F44336}</style></head><body>");
+  client.print(".status-ok{border-left-color:#4CAF5O}.status-warn{border-left-color:#FFC107}.status-error{border-left-color:#F44336}");
+  // ✅ NEU: CSS für das Dropdown-Menü
+  client.print("select{width:100%;padding:10px;font-size:16px;border-radius:5px;border:1px solid #ccc}</style></head><body>");
   client.print("<h1>www.autosteer.cc AgOpenGps AIO Real-Time Status</h1><div id='data-grid' class='grid'></div>");
   client.print("<h2>System Configuration</h2><div id='settings-grid' class='grid'></div><div id='restarting'>Restarting... Please wait.</div>");
   client.print("<script>function r(v){return parseFloat(v).toFixed(2)}function i(v){return parseInt(v)}");
   client.print("function createCard(l,v,c=''){return`<div class='card ${c}'><div class=label>${l}</div><div class=value>${v}</div></div>`}");
   client.print("function createToggleBtn(l,p,s){return`<div class=card><div class=label>${l}</div><button onclick='setParam(\"${p}\",${!s})' class='toggle-btn ${s?'on':'off'}'>${s?'ON':'OFF'}</button></div>`}");
   client.print("function createMotorSelector(m){let b='';const types=['PWM','Keya','AllyNav'];for(let i=0;i<3;i++){b+=`<button onclick='setParam(\"motor\",${i})' class='${m==i?\"active\":''}'>${types[i]}</button>`}return`<div class=card><div class=label>Motor Controller</div><div class='btn-group'>${b}</div></div>`}");
+  // ✅ NEU: JavaScript-Funktion zum Erstellen der Dropdown-Menüs
+  client.print("function createRelaySelector(l,p,m){let o='';const t=['None','Autosteer','Tramline','Hitch Up','Hitch Down','Section 1','Section 2'];for(let i=0;i<t.length;i++){o+=`<option value='${i+1}' ${m==i+1?'selected':''}>${t[i]}</option>`}return`<div class=card><div class=label>${l}</div><select onchange='setParam(\"${p}\",this.value)'>${o}</select></div>`}");
   client.print("function setParam(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v}`)}");
   client.print("function load(){fetch('/json').then(r=>r.json()).then(d=>{let h='';let s='';");
   // Status Cards
   client.print("h+=createCard('Uptime',i(d.up)+' s','status-ok');h+=createCard('GPS Fix',i(d.fix),'status-'+(i(d.fix)>=4?'ok':'warn'));h+=createCard('Satellites',i(d.sats),'status-'+(i(d.sats)>8?'ok':'warn'));h+=createCard('Speed',r(d.speed)+' km/h');");
   client.print("if(d.roll!=null){h+=createCard('IMU Heading',r(d.heading/10)+' &deg;');h+=createCard('IMU Roll',r(d.roll/10)+' &deg;');}");
   client.print("if(d.steer!=null){h+=createCard('Steering',d.steer==1?'ACTIVE':'OFF','status-'+(d.steer==1?'ok':'warn'));h+=createCard('Set Angle',r(d.setAngle)+' &deg;');h+=createCard('Angle Error',r(d.angleErr)+' &deg;');h+=createCard('PWM',i(d.pwm));}");
+  client.print("if(d.sensor_type){h+=createCard(d.sensor_type+' Sensor',parseFloat(d.sensor_reading).toFixed(1));}");
   client.print("h+=createCard('IMU Status',d.imuOk?'OK':'OFF','status-'+(d.imuOk?'ok':'error'));h+=createCard('WAS Status',d.wasOk?'OK':'ERROR','status-'+(d.wasOk?'ok':'error'));");
   // Setting Controls
   client.print("s+=createToggleBtn('GNSS Passthrough','gnsspass',d.gnsspass);s+=createToggleBtn('Use MCP23017','mcp',d.mcp);s+=createMotorSelector(d.motor_type);");
+  // ✅ NEU: Fügt die Relais-Auswahlmenüs zur Konfiguration hinzu
+  client.print("s+=createRelaySelector('PCB Relay 1 Function','relay1',d.relay1_mode);s+=createRelaySelector('PCB Relay 2 Function','relay2',d.relay2_mode);");
   client.print("document.getElementById('data-grid').innerHTML=h;document.getElementById('settings-grid').innerHTML=s;");
   client.print("}).catch(e=>{console.log(e);})}load();setInterval(load,2000)</script></body></html>");
 }
@@ -134,45 +132,39 @@ void sendWebPageFast(EthernetClient &client) {
 // Minimale JSON-Antwort (schnell!)
 void sendJsonDataFast(EthernetClient &client) {
   client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n{");
-
-  // System & GPS
   client.print("\"up\":"); client.print(millis() / 1000);
   client.print(",\"fix\":\""); client.print(fixQuality);
   client.print("\",\"sats\":\""); client.print(numSats);
   client.print("\",\"speed\":"); client.print(gpsSpeed, 2);
-  
-  // IMU
   if (useBNO08xRVC){
     client.print(",\"roll\":\""); client.print(imuRoll);
     client.print("\",\"pitch\":\""); client.print(imuPitch);
     client.print("\",\"heading\":\""); client.print(imuHeading);
     client.print("\"");
   }
-
-  // Autosteer
   if (Autosteer_running) {
     client.print(",\"steer\":"); client.print(watchdogTimer < WATCHDOG_THRESHOLD ? "1" : "0");
     client.print(",\"setAngle\":"); client.print(steerAngleSetPoint, 2);
     client.print(",\"angleErr\":"); client.print(steerAngleError, 2);
     client.print(",\"pwm\":"); client.print(pwmDisplay);
   }
-
-  // Status & Settings
+  if (steerConfig.CurrentSensor) {
+    client.print(",\"sensor_type\":\"Current\"");
+    client.print(",\"sensor_reading\":"); client.print(sensorReading, 1);
+  } else if (steerConfig.PressureSensor) {
+    client.print(",\"sensor_type\":\"Pressure\"");
+    client.print(",\"sensor_reading\":"); client.print(sensorReading, 1);
+  }
   client.print(",\"imuOk\":"); client.print(useBNO08xRVC);
   client.print(",\"wasOk\":"); client.print(adsOk);
   client.print(",\"gnsspass\":"); client.print(gnsspassThrough);
   client.print(",\"mcp\":"); client.print(useMCP23017);
-  
-  // Motor Type Logik für JSON
-  int motorType = 0; // Default auf PWM
-  if (isKeya && isallnavy) {
-      motorType = 2; // AllyNav
-  } else if (isKeya) {
-      motorType = 1; // Keya
-  }
+  int motorType = 0; 
+  if (isKeya && isallnavy) { motorType = 2; } else if (isKeya) { motorType = 1; }
   client.print(",\"motor_type\":"); client.print(motorType);
-
-
+  // ✅ NEU: Sendet die aktuellen Relais-Modi im JSON
+  client.print(",\"relay1_mode\":"); client.print(sysConfig.pcbRelay1_Mode);
+  client.print(",\"relay2_mode\":"); client.print(sysConfig.pcbRelay2_Mode);
   client.println("}");
 }
 
