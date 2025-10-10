@@ -55,32 +55,104 @@ void saveAndReset() {
   SCB_AIRCR = 0x05FA0004; // Teensy Reset
 }
 
-// Funktion zur Verarbeitung von Einstellungsänderungen
+// 
 void handleSetConfig(String req) {
+  // ✅ Verbesserte Parameter-Extraktion
+  
   if (req.indexOf("gnsspass=") != -1) {
-    sysConfig.gnsspassThrough = (req.indexOf("gnsspass=1") != -1) ? 1 : 0;
+    int startPos = req.indexOf("gnsspass=") + 9; // "gnsspass=" = 9 Zeichen
+    int endPos = req.indexOf(" ", startPos);
+    if (endPos == -1) endPos = req.indexOf("&", startPos);
+    if (endPos == -1) endPos = req.length();
+    
+    String value = req.substring(startPos, endPos);
+    sysConfig.gnsspassThrough = (value == "1" || value == "true") ? 1 : 0;
+    gnsspassThrough = (sysConfig.gnsspassThrough != 0);
+    
+    Serial.print("GNSS Pass-Through gesetzt auf: ");
+    Serial.println(sysConfig.gnsspassThrough);
+    
   } else if (req.indexOf("mcp=") != -1) {
-    sysConfig.useMCP23017 = (req.indexOf("mcp=1") != -1) ? 1 : 0;
+    int startPos = req.indexOf("mcp=") + 4;
+    int endPos = req.indexOf(" ", startPos);
+    if (endPos == -1) endPos = req.indexOf("&", startPos);
+    if (endPos == -1) endPos = req.length();
+    
+    String value = req.substring(startPos, endPos);
+    sysConfig.useMCP23017 = (value == "1" || value == "true") ? 1 : 0;
+    useMCP23017 = (sysConfig.useMCP23017 != 0);
+    
+    Serial.print("MCP23017 gesetzt auf: ");
+    Serial.println(sysConfig.useMCP23017);
+    
   } else if (req.indexOf("motor=") != -1) {
-    int motorVal = req.substring(req.indexOf("motor=") + 6).toInt();
+    int startPos = req.indexOf("motor=") + 6;
+    int endPos = req.indexOf(" ", startPos);
+    if (endPos == -1) endPos = req.indexOf("&", startPos);
+    if (endPos == -1) endPos = req.length();
+    
+    int motorVal = req.substring(startPos, endPos).toInt();
+    
     switch(motorVal) {
-        case 0: sysConfig.isKeya = 0; sysConfig.isallnavy = 0; break;
-        case 1: sysConfig.isKeya = 1; sysConfig.isallnavy = 0; break;
-        case 2: sysConfig.isKeya = 1; sysConfig.isallnavy = 1; break;
+        case 0: 
+          sysConfig.isKeya = 0; 
+          sysConfig.isallnavy = 0; 
+          break;
+        case 1: 
+          sysConfig.isKeya = 1; 
+          sysConfig.isallnavy = 0; 
+          break;
+        case 2: 
+          sysConfig.isKeya = 1; 
+          sysConfig.isallnavy = 1; 
+          break;
     }
-  // ✅ NEU: Verarbeitung der Relais-Einstellungen
+    isKeya = (sysConfig.isKeya != 0);
+    isallnavy = (sysConfig.isallnavy != 0);
+    
+    Serial.print("Motor Type gesetzt auf: ");
+    Serial.println(motorVal);
+    
   } else if (req.indexOf("relay1=") != -1) {
-    int val = req.substring(req.indexOf("relay1=") + 7).toInt();
-    if (val >= 1 && val <= 7) sysConfig.pcbRelay1_Mode = val;
+    int startPos = req.indexOf("relay1=") + 7;
+    int endPos = req.indexOf(" ", startPos);
+    if (endPos == -1) endPos = req.indexOf("&", startPos);
+    if (endPos == -1) endPos = req.length();
+    
+    int val = req.substring(startPos, endPos).toInt();
+    if (val >= 1 && val <= 7) {
+      sysConfig.pcbRelay1_Mode = val;
+      Serial.print("Relay 1 Mode gesetzt auf: ");
+      Serial.println(val);
+    }
+    
   } else if (req.indexOf("relay2=") != -1) {
-    int val = req.substring(req.indexOf("relay2=") + 7).toInt();
-    if (val >= 1 && val <= 7) sysConfig.pcbRelay2_Mode = val;
+    int startPos = req.indexOf("relay2=") + 7;
+    int endPos = req.indexOf(" ", startPos);
+    if (endPos == -1) endPos = req.indexOf("&", startPos);
+    if (endPos == -1) endPos = req.length();
+    
+    int val = req.substring(startPos, endPos).toInt();
+    if (val >= 1 && val <= 7) {
+      sysConfig.pcbRelay2_Mode = val;
+      Serial.print("Relay 2 Mode gesetzt auf: ");
+      Serial.println(val);
+    }
   }
+  
+  // ✅ Vollständige Debug-Ausgabe
+  Serial.println("\r\n=== Config wird gespeichert ===");
+  Serial.print("gnsspassThrough: "); Serial.println(sysConfig.gnsspassThrough);
+  Serial.print("useMCP23017: "); Serial.println(sysConfig.useMCP23017);
+  Serial.print("isKeya: "); Serial.println(sysConfig.isKeya);
+  Serial.print("isallnavy: "); Serial.println(sysConfig.isallnavy);
+  Serial.print("Relay1 Mode: "); Serial.println(sysConfig.pcbRelay1_Mode);
+  Serial.print("Relay2 Mode: "); Serial.println(sysConfig.pcbRelay2_Mode);
+  Serial.println("===============================\r\n");
   
   webClient.print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nOK");
   saveAndReset();
 }
-
 
 void webserverSetup() {
   webServer.begin();
@@ -113,7 +185,9 @@ void sendWebPageFast(EthernetClient &client) {
   client.print("function createMotorSelector(m){let b='';const types=['PWM','Keya','AllyNav'];for(let i=0;i<3;i++){b+=`<button onclick='setParam(\"motor\",${i})' class='${m==i?\"active\":''}'>${types[i]}</button>`}return`<div class=card><div class=label>Motor Controller</div><div class='btn-group'>${b}</div></div>`}");
   // ✅ NEU: JavaScript-Funktion zum Erstellen der Dropdown-Menüs
   client.print("function createRelaySelector(l,p,m){let o='';const t=['None','Autosteer','Tramline','Hitch Up','Hitch Down','Section 1','Section 2'];for(let i=0;i<t.length;i++){o+=`<option value='${i+1}' ${m==i+1?'selected':''}>${t[i]}</option>`}return`<div class=card><div class=label>${l}</div><select onchange='setParam(\"${p}\",this.value)'>${o}</select></div>`}");
-  client.print("function setParam(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v}`)}");
+  client.print("function setParam(p,v){document.getElementById('restarting').style.display='block';fetch(`/set?${p}=${v}`).then(()=>{setTimeout(checkRestart,3000)})}");
+client.print("function checkRestart(){fetch('/json').then(()=>{location.reload()}).catch(()=>{setTimeout(checkRestart,1000)})}");
+
   client.print("function load(){fetch('/json').then(r=>r.json()).then(d=>{let h='';let s='';");
   // Status Cards
   client.print("h+=createCard('Uptime',i(d.up)+' s','status-ok');h+=createCard('GPS Fix',i(d.fix),'status-'+(i(d.fix)>=4?'ok':'warn'));h+=createCard('Satellites',i(d.sats),'status-'+(i(d.sats)>8?'ok':'warn'));h+=createCard('Speed',r(d.speed)+' km/h');");

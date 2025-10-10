@@ -1,3 +1,5 @@
+#include <EEPROM.h>
+
 bool isKeyaSteeringActive = false;
 int previousPwmDrive = 0;
 
@@ -241,7 +243,7 @@ void autosteerSetup() {
     EEPROM.get(10, steerSettings);  // read the Settings
     EEPROM.get(40, steerConfig);
     EEPROM.get(60, networkAddress);
-        EEPROM.get(100, sysConfig);  // NEU: System Config laden
+       // EEPROM.get(100, sysConfig);  // NEU: System Config laden
 
   }
 
@@ -249,23 +251,6 @@ void autosteerSetup() {
   steerConfigInit();
   
 
-  // Boolean-Variablen aus EEPROM setzen
-  gnsspassThrough = (sysConfig.gnsspassThrough != 0);
-  useMCP23017 = (sysConfig.useMCP23017 != 0);
-  isKeya = (sysConfig.isKeya != 0);
-   isallnavy = (sysConfig.isallnavy != 0);
-
-    Serial.println("\r\n=== Current System Config ===");
-  Serial.print("GNSS Pass-Through: ");
-  Serial.println(gnsspassThrough);
-  Serial.print("MCP23017: ");
-  Serial.println(useMCP23017);
-  Serial.print("Keya Motor: ");
-  Serial.println(isKeya);
-  Serial.print("Motor Type: ");
-  Serial.println(isallnavy ? "Allynav" : "Keya");
-  Serial.println("=============================\r\n");
-  
 
   if (Autosteer_running) {
     Serial.println("Autosteer running, waiting for AgOpenGPS");
@@ -862,6 +847,35 @@ void EncoderFunc() {
     pulseCount++;
     encEnable = false;
   }
+}
+
+// ✅ HIER die neue Funktion einfügen
+void loadSystemConfig() {
+  int16_t eepromCheck = 0;
+  EEPROM.get(0, eepromCheck);
+  
+  if (eepromCheck == EEP_Ident) {
+    EEPROM.get(100, sysConfig);
+    
+    gnsspassThrough = (sysConfig.gnsspassThrough != 0);
+    useMCP23017 = (sysConfig.useMCP23017 != 0);
+    isKeya = (sysConfig.isKeya != 0);
+    isallnavy = (sysConfig.isallnavy != 0);
+    
+    Serial.println("\r\n=== System Config aus EEPROM geladen ===");
+  } else {
+    Serial.println("\r\n=== EEPROM nicht initialisiert - verwende Standardwerte ===");
+  }
+  
+  Serial.print("GNSS Pass-Through: ");
+  Serial.println(gnsspassThrough ? "AN" : "AUS");
+  Serial.print("MCP23017: ");
+  Serial.println(useMCP23017 ? "AN" : "AUS");
+  Serial.print("Keya Motor: ");
+  Serial.println(isKeya ? "AN" : "AUS");
+  Serial.print("Motor Type: ");
+  Serial.println(isallnavy ? "Allynav" : "Keya");
+  Serial.println("========================================\r\n");
 }
 
 //Rob Tillaart, https://github.com/RobTillaart/MultiMap

@@ -1,3 +1,5 @@
+#include <EEPROM.h>
+
 
 struct SystemConfig {
   uint8_t gnsspassThrough = 0;  // 0 = false, 1 = true
@@ -252,6 +254,8 @@ void setup() {
   set_arm_clock(450000000);  //Set CPU speed to 150mhz
   Serial.print("CPU speed set to: ");
   Serial.println(F_CPU_ACTUAL);
+
+  loadSystemConfig();
 
   
   pinMode(AUTOSTEER_STANDBY_LED, OUTPUT);
@@ -793,3 +797,4 @@ void updatePcbRelays() {
     previousRelay2_state = relay2_state;
   }
 }
+
