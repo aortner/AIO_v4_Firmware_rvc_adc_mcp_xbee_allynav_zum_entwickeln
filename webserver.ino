@@ -178,6 +178,7 @@ void sendWebPageFast(EthernetClient &client) {
   // ✅ NEU: CSS für das Dropdown-Menü
   client.print("select{width:100%;padding:10px;font-size:16px;border-radius:5px;border:1px solid #ccc}</style></head><body>");
   client.print("<h1>www.autosteer.cc AgOpenGps AIO Real-Time Status</h1><div id='data-grid' class='grid'></div>");
+  
   client.print("<h2>System Configuration</h2><div id='settings-grid' class='grid'></div><div id='restarting'>Restarting... Please wait.</div>");
   client.print("<script>function r(v){return parseFloat(v).toFixed(2)}function i(v){return parseInt(v)}");
   client.print("function createCard(l,v,c=''){return`<div class='card ${c}'><div class=label>${l}</div><div class=value>${v}</div></div>`}");
