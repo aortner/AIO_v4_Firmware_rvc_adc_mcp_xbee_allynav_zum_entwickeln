@@ -83,7 +83,7 @@ msg.buf[7] = 0;
 
  
 
-
+/*
 setally(90,250);
 setally(91,800);
 setally(92,250);
@@ -98,6 +98,7 @@ setally(105,300);
 
 setally(256,3000);
 setally(252,180);
+*/
 
 
      //save all
