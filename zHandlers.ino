@@ -26,6 +26,9 @@ char imuRoll[6];
 char imuPitch[6];
 char imuYawRate[6];
 
+extern void addToGpsLog(const char* sentence);
+
+
 // If odd characters showed up.
 void errorHandler()
 {
@@ -212,13 +215,21 @@ void BuildNmea(void)
 
     strcat(nmea, "\r\n");
 
-    SerialAOG.write(nmea);  //Always send USB GPS data
+   // SerialAOG.write(nmea);  //Always send USB GPS data
+ 
 
 
     int len = strlen(nmea);
+
+gnssBufferIndex = (uint16_t)len;  // Setze den globalen Index
+addToGpsLog(nmea);
+
     Eth_udpPAOGI.beginPacket(Eth_ipDestination, portDestination);
     Eth_udpPAOGI.write(nmea, len);
     Eth_udpPAOGI.endPacket();
+
+
+
 }
 
 void CalculateChecksum(void)

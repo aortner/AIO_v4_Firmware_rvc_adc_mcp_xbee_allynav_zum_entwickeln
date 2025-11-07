@@ -50,6 +50,7 @@ uint8_t KeyaCurrentSensorReading = 0;
 // Seems to work for CAN2, not sure why it didn't for CAN1
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_256> Keya_Bus;
 
+extern void addToGpsLog(const char* sentence);
 
 
 /************************* User Settings *************************/
@@ -222,6 +223,8 @@ void sendGnssBuffer() {
       Eth_udpPAOGI.write((uint8_t*)gnssPassThroughBuffer, gnssBufferIndex);
       Eth_udpPAOGI.endPacket();
       gnssPacketsSent++;
+      addToGpsLog(gnssPassThroughBuffer);
+
     } else {
       // Gib eine Warnung für ungültige Daten aus
       Serial.print("WARNUNG: Ungültige Prüfsumme! Verworfen: ");
